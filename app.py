@@ -44,19 +44,30 @@ def processar_com_groq_streaming(texto_usuario):
     }
 
     payload = {
-        "model": modelo,
-        "messages": [
-            {
-                "role": "system",
-                "content": "Você é Eloy, assistente de voz simpático e direto. Responda de forma curta, clara e natural."
-            },
-            {"role": "user", "content": texto_usuario}
-        ],
-        "temperature": 0.7,
-        "max_tokens": 150,
-        "top_p": 0.9,
-        "stream": True  # Ativando streaming
-    }
+    "model": modelo,
+    "messages": [
+        {
+            "role": "system",
+            "content": (
+                "Você é Eloy, um assistente de inteligência artificial focado no ambiente corporativo. "
+                "Seu papel é atuar como um assistente empresarial confiável, respondendo com profissionalismo, "
+                "clareza e objetividade. "
+                "Responda de forma direta e formal, como se estivesse em uma empresa real. "
+                "Quando solicitado, gere relatórios, status, análises ou dados fictícios coerentes e realistas, "
+                "mantendo o tom de um colaborador experiente. "
+                "Evite informalidades e respostas muito curtas. "
+                "Seu objetivo é ajudar em tarefas de trabalho, reuniões, organização e comunicações empresariais."
+            )
+        },
+        {"role": "user", "content": texto_usuario}
+    ],
+    "temperature": 0.7,
+    "max_tokens": 200,
+    "top_p": 0.9,
+    "stream": True
+}
+
+    
 
     try:
         print(f"[v0] Enviando requisição Groq com STREAMING...", flush=True)
@@ -131,15 +142,104 @@ def processar_com_groq_streaming(texto_usuario):
         sentence_queue.put(None)
 
 
-def processar_resposta_com_ia(texto_usuario):
-    """
-    Dispatcher com fallback automático entre APIs
-    """
-    if CURRENT_API == "groq":
-        try:
-            processar_com_groq_streaming(texto_usuario)
-        except Exception as e:
-            print(f"\n[v0] Groq falhou: {e}, tentando fallback...")
+def processar_com_groq_streaming(texto_usuario):
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    modelo = "llama-3.3-70b-versatile"
+
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+    "model": modelo,
+    "messages": [
+        {
+            "role": "system",
+            "content": (
+                "Você é Eloy, um assistente de inteligência artificial corporativo. "
+                "Seu papel é simular um assistente empresarial real, respondendo como se fizesse parte de uma organização. "
+                "Você deve sempre gerar respostas completas, realistas e contextuais, mesmo que sejam baseadas em dados fictícios. "
+                "Crie relatórios semanais, status de projetos, e análises de desempenho com números e informações plausíveis, "
+                "mantendo coerência e tom profissional. "
+                "Jamais diga que não possui informações; em vez disso, apresente um conteúdo simulado que soe autêntico. "
+                "Evite informalidades e respostas vagas. "
+                "Mantenha sempre a linguagem empresarial, com clareza e objetividade, "
+                "como se estivesse comunicando-se com gestores, analistas ou diretores."
+            )
+        },
+        {"role": "user", "content": texto_usuario}
+    ],
+    "temperature": 0.8,
+    "max_tokens": 250,
+    "top_p": 0.9,
+    "stream": True
+}
+
+
+    try:
+        print(f"[v0] Enviando requisição Groq com STREAMING...", flush=True)
+        res = requests.post(url, headers=headers, json=payload, timeout=30, stream=True)
+
+        if res.status_code != 200:
+            print(f"[v0] Erro HTTP {res.status_code}: {res.text}", flush=True)
+            res.raise_for_status()
+
+        print("🤖 Eloy: ", end="", flush=True)
+
+        buffer_sentenca = ""
+        ultima_sentenca = None  # ← Novo controle
+
+        for linha in res.iter_lines():
+            if not linha:
+                continue
+
+            linha_str = linha.decode('utf-8')
+            if linha_str.startswith('data: '):
+                linha_str = linha_str[6:]
+
+            if linha_str == '[DONE]':
+                # ✅ Só imprime se ainda restar algo novo no buffer
+                if buffer_sentenca.strip() and buffer_sentenca.strip() != ultima_sentenca:
+                    sentenca_final = buffer_sentenca.strip()
+                    print(sentenca_final, end=" ", flush=True)
+                    sentence_queue.put(sentenca_final)
+                break
+
+            try:
+                chunk = json.loads(linha_str)
+                if "choices" in chunk and len(chunk["choices"]) > 0:
+                    delta = chunk["choices"][0].get("delta", {})
+                    conteudo = delta.get("content", "")
+
+                    if conteudo:
+                        buffer_sentenca += conteudo
+                        print(conteudo, end="", flush=True)
+
+                        if buffer_sentenca.rstrip().endswith(('.', '!', '?')):
+                            sentenca = buffer_sentenca.strip()
+                            sentence_queue.put(sentenca)
+                            ultima_sentenca = sentenca  # ← Armazena última enviada
+                            buffer_sentenca = ""
+
+            except json.JSONDecodeError:
+                continue
+
+        print()
+        sentence_queue.put(None)
+
+    except requests.exceptions.Timeout:
+        print("\nErro Groq: Timeout - Requisição demorou muito")
+        sentence_queue.put("Desculpe, não consigo processar agora.")
+        sentence_queue.put(None)
+    except requests.exceptions.HTTPError as e:
+        print(f"\nErro Groq HTTP: {e}")
+        sentence_queue.put("Desculpe, não consigo processar agora.")
+        sentence_queue.put(None)
+    except Exception as e:
+        print(f"\nErro Groq: {type(e).__name__}: {e}")
+        sentence_queue.put("Desculpe, não consigo processar agora.")
+        sentence_queue.put(None)
 
 
 # ========== Função para menu e interações com o usuário ==========
@@ -178,7 +278,7 @@ def iniciar_conversacao():
     global current_state  # Declare a variável como global aqui
     print("\nModo de conversação iniciado! Para sair, diga qualquer despedida (ex: 'tchau', 'até logo').")
 
-    despedidas = ["desligar", "tchau", "até logo", "adeus", "nos vemos", "falou", "até mais", "bye", "bye bye", "até a próxima"]
+    despedidas = ["desligar", "flw", "tchau", "até logo", "adeus", "nos vemos", "falou", "até mais", "bye", "bye bye", "até a próxima"]
 
     while current_state == STATE_CONVERSING:
         pergunta = input("Você: ")
@@ -190,7 +290,7 @@ def iniciar_conversacao():
             input("Pressione 'Enter' para voltar ao menu de opções.")
             break
         
-        processar_resposta_com_ia(pergunta)
+        processar_com_groq_streaming(pergunta)
 
 
 # ========== MAIN ==========
