@@ -12,7 +12,6 @@ from difflib import SequenceMatcher
 # 🔑 Chaves - ESCOLHA UMA API ABAIXO
 GROQ_API_KEY = "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"
 
-
 # 🔧 Selecione qual API usar
 CURRENT_API = "groq"  # "groq"
 
@@ -28,6 +27,7 @@ should_stop_speaking = False
 should_stop_verification = False
 sentence_queue = queue.Queue()
 
+
 # ========== FUNÇÕES DE IA - MÚLTIPLAS OPÇÕES ==========
 
 def processar_com_groq_streaming(texto_usuario):
@@ -35,14 +35,14 @@ def processar_com_groq_streaming(texto_usuario):
     Usando streaming real da API Groq
     """
     url = "https://api.groq.com/openai/v1/chat/completions"
-    
+
     modelo = "llama-3.3-70b-versatile"
-    
+
     headers = {
         "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
-    
+
     payload = {
         "model": modelo,
         "messages": [
@@ -57,30 +57,30 @@ def processar_com_groq_streaming(texto_usuario):
         "top_p": 0.9,
         "stream": True  # Ativando streaming
     }
-    
+
     try:
         print(f"[v0] Enviando requisição Groq com STREAMING...", flush=True)
-        
+
         res = requests.post(url, headers=headers, json=payload, timeout=30, stream=True)
-        
+
         if res.status_code != 200:
             print(f"[v0] Erro HTTP {res.status_code}: {res.text}", flush=True)
             res.raise_for_status()
-        
+
         print("🤖 Eloy: ", end="", flush=True)
-        
+
         buffer_sentenca = ""
-        
+
         for linha in res.iter_lines():
             if not linha:
                 continue
-            
+
             linha_str = linha.decode('utf-8')
-            
+
             # Skip do prefixo "data: "
             if linha_str.startswith('data: '):
                 linha_str = linha_str[6:]
-            
+
             # Skip se for [DONE]
             if linha_str == '[DONE]':
                 if buffer_sentenca.strip():
@@ -88,31 +88,32 @@ def processar_com_groq_streaming(texto_usuario):
                     print(sentenca_final, end=" ", flush=True)
                     sentence_queue.put(sentenca_final)
                 break
-            
+
             try:
                 chunk = json.loads(linha_str)
-                
+
                 # Extrair conteúdo do delta
                 if "choices" in chunk and len(chunk["choices"]) > 0:
                     delta = chunk["choices"][0].get("delta", {})
                     conteudo = delta.get("content", "")
-                    
+
                     if conteudo:
                         buffer_sentenca += conteudo
                         print(conteudo, end="", flush=True)
-                        
+
                         if buffer_sentenca.rstrip().endswith(('.', ',')):
                             sentenca = buffer_sentenca.strip()
-                             # Enviar a sentença
+                            # Enviar a sentença
                             sentence_queue.put(sentenca)
                             buffer_sentenca = ""
-                            
+
+
             except json.JSONDecodeError:
                 continue
-        
+
         print()  # Quebra de linha
         sentence_queue.put(None)  # Sinal de fim
-        
+
     except requests.exceptions.Timeout:
         print("\n Erro Groq: Timeout - Requisição demorou muito")
         print("[v0] Tentando fallback...")
@@ -129,6 +130,7 @@ def processar_com_groq_streaming(texto_usuario):
         sentence_queue.put("Desculpe, não consigo processar agora.")
         sentence_queue.put(None)
 
+
 def processar_resposta_com_ia(texto_usuario):
     """
     Dispatcher com fallback automático entre APIs
@@ -139,6 +141,7 @@ def processar_resposta_com_ia(texto_usuario):
         except Exception as e:
             print(f"\n[v0] Groq falhou: {e}, tentando fallback...")
 
+
 # ========== Função para menu e interações com o usuário ==========
 
 def exibir_menu():
@@ -148,13 +151,17 @@ def exibir_menu():
     print("2. Acessar site da Eloy")
     print("3. Desligar Eloy (entra em standby)")
 
+
 def processar_entrada(entrada):
     """Processa a entrada do usuário e executa as ações correspondentes"""
     global current_state
 
     if entrada == "1":
-        current_state = STATE_CONVERSING
-        iniciar_conversacao()
+        if current_state == STATE_CONVERSING:
+            print("Já estamos em modo de conversação! Digite 'desligar' para sair.")
+        else:
+            current_state = STATE_CONVERSING
+            iniciar_conversacao()
     elif entrada == "2":
         webbrowser.open("http://www.eloy.com.br")
     elif entrada == "3":
@@ -165,24 +172,27 @@ def processar_entrada(entrada):
     else:
         print("Opção inválida! Tente novamente.")
 
+
 def iniciar_conversacao():
     """Inicia o modo de conversação"""
+    global current_state  # Declare a variável como global aqui
     print("\nModo de conversação iniciado! Para sair, digite 'desligar'.")
 
     while current_state == STATE_CONVERSING:
         pergunta = input("Você: ")
         if pergunta.lower() == "desligar":
             print("\nEloy desligado.")
-            current_state = STATE_STANDBY
+            current_state = STATE_STANDBY  # Altera o estado global
             input("Pressione 'Enter' para voltar ao menu de opções.")
             break
         processar_resposta_com_ia(pergunta)
+
 
 # ========== MAIN ==========
 
 if __name__ == "__main__":
     print("\nEloy - Assistente Virtual Interativo (Sem Áudio)")
-    
+
     while True:
         exibir_menu()
         opcao = input("Escolha uma opção: ")

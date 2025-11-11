@@ -1,13 +1,1 @@
 pip install requests sounddevice wavio numpy gtts playsound3 queue difflib unicodedata threading json re
-Modo de conversação iniciado! Para sair, digite 'desligar'.
-Traceback (most recent call last):
-  File "c:\Users\leo96\Desktop\Gs-Python\app.py", line 189, in <module>
-    processar_entrada(opcao)
-    ~~~~~~~~~~~~~~~~~^^^^^^^
-  File "c:\Users\leo96\Desktop\Gs-Python\app.py", line 157, in processar_entrada
-    iniciar_conversacao()
-    ~~~~~~~~~~~~~~~~~~~^^
-  File "c:\Users\leo96\Desktop\Gs-Python\app.py", line 172, in iniciar_conversacao
-    while current_state == STATE_CONVERSING:
-          ^^^^^^^^^^^^^
-UnboundLocalError: cannot access local variable 'current_state' where it is not associated with a value
