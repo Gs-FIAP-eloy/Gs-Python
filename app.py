@@ -6,20 +6,21 @@ import unicodedata
 import threading
 import queue
 import json
+import webbrowser
 from difflib import SequenceMatcher
 
 # 🔑 Chaves - ESCOLHA UMA API ABAIXO
 GROQ_API_KEY = "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"
-OPENROUTER_API_KEY = "sk-or-v1-0"  # Se usar OpenRouter
+
 
 # 🔧 Selecione qual API usar
-CURRENT_API = "groq"  # "groq", "openrouter", ou "google"
+CURRENT_API = "groq"  # "groq"
 
 # 🎯 Estados
 STATE_STANDBY = "standby"
 STATE_ON = "on"
 STATE_SPEAKING = "speaking"
-
+STATE_CONVERSING = "conversing"
 
 # Controle global
 current_state = STATE_STANDBY
@@ -113,18 +114,18 @@ def processar_com_groq_streaming(texto_usuario):
         sentence_queue.put(None)  # Sinal de fim
         
     except requests.exceptions.Timeout:
-        print("\n⚠️ Erro Groq: Timeout - Requisição demorou muito")
+        print("\n Erro Groq: Timeout - Requisição demorou muito")
         print("[v0] Tentando fallback...")
         sentence_queue.put("Desculpe, não consigo processar agora.")
         sentence_queue.put(None)
     except requests.exceptions.HTTPError as e:
-        print(f"\n⚠️ Erro Groq HTTP: {e}")
+        print(f"\n Erro Groq HTTP: {e}")
         print(f"[v0] Status: {res.status_code}")
         print(f"[v0] Response: {res.text}")
         sentence_queue.put("Desculpe, não consigo processar agora.")
         sentence_queue.put(None)
     except Exception as e:
-        print(f"\n⚠️ Erro Groq: {type(e).__name__}: {e}")
+        print(f"\n Erro Groq: {type(e).__name__}: {e}")
         sentence_queue.put("Desculpe, não consigo processar agora.")
         sentence_queue.put(None)
 
@@ -143,23 +144,39 @@ def processar_resposta_com_ia(texto_usuario):
 def exibir_menu():
     """Exibe o menu de opções para o usuário"""
     print("\nMenu de opções:")
-    print("1. Fazer uma pergunta")
+    print("1. Iniciar modo de conversação")
     print("2. Acessar site da Eloy")
     print("3. Desligar Eloy (entra em standby)")
 
 def processar_entrada(entrada):
     """Processa a entrada do usuário e executa as ações correspondentes"""
+    global current_state
+
     if entrada == "1":
-        pergunta = input("Digite sua pergunta: ")
-        processar_resposta_com_ia(pergunta)
+        current_state = STATE_CONVERSING
+        iniciar_conversacao()
     elif entrada == "2":
-        print("Acesse o site da Eloy em: www.eloy.com.br")
+        webbrowser.open("http://www.eloy.com.br")
     elif entrada == "3":
         print("Eloy entrou em standby. Pressione 'Enter' para reativar.")
+        current_state = STATE_STANDBY
         input()  # A Eloy só volta a funcionar após pressionar Enter
         print("Eloy reativado.")
     else:
         print("Opção inválida! Tente novamente.")
+
+def iniciar_conversacao():
+    """Inicia o modo de conversação"""
+    print("\nModo de conversação iniciado! Para sair, digite 'desligar'.")
+
+    while current_state == STATE_CONVERSING:
+        pergunta = input("Você: ")
+        if pergunta.lower() == "desligar":
+            print("\nEloy desligado.")
+            current_state = STATE_STANDBY
+            input("Pressione 'Enter' para voltar ao menu de opções.")
+            break
+        processar_resposta_com_ia(pergunta)
 
 # ========== MAIN ==========
 
