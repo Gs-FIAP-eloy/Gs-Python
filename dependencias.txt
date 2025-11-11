@@ -1,0 +1,1 @@
+pip install requests sounddevice wavio numpy gtts playsound3 queue difflib unicodedata threading json re
