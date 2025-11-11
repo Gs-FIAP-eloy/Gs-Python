@@ -176,15 +176,20 @@ def processar_entrada(entrada):
 def iniciar_conversacao():
     """Inicia o modo de conversação"""
     global current_state  # Declare a variável como global aqui
-    print("\nModo de conversação iniciado! Para sair, digite 'desligar'.")
+    print("\nModo de conversação iniciado! Para sair, diga qualquer despedida (ex: 'tchau', 'até logo').")
+
+    despedidas = ["desligar", "tchau", "até logo", "adeus", "nos vemos", "falou", "até mais", "bye", "bye bye", "até a próxima"]
 
     while current_state == STATE_CONVERSING:
         pergunta = input("Você: ")
-        if pergunta.lower() == "desligar":
-            print("\nEloy desligado.")
-            current_state = STATE_STANDBY  # Altera o estado global
+        
+        # Verificar se a frase contém alguma despedida
+        if any(despedida in pergunta.lower() for despedida in despedidas):
+            print("\nEloy desligado. Até mais!")
+            current_state = STATE_STANDBY  # Altera o estado global para standby
             input("Pressione 'Enter' para voltar ao menu de opções.")
             break
+        
         processar_resposta_com_ia(pergunta)
 
 
