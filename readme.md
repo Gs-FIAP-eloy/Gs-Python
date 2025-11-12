@@ -181,11 +181,11 @@ Este arquivo é criado e atualizado automaticamente pelo sistema conforme as aç
 
 Este projeto foi desenvolvido pelos seguintes alunos da FIAP:
 
-| Nome Completo | RA | Função no Projeto |
+| Nome Completo | RA | 
 | :--- | :--- | :--- |
-| **Lucas Toledo Cortonezi** | 563271 | Engenheiro de Software / Coordenador do Projeto |
-| **Leonardo da Silva Pinto** | 564929 | Desenvolvedor Full Stack |
-| **Samuel Enzo D. Monteiro** | 564391 | Analista de Sistemas |
+| **Lucas Toledo Cortonezi** | 563271 | 
+| **Leonardo da Silva Pinto** | 564929 | 
+| **Samuel Enzo D. Monteiro** | 564391 | 
 
 ---
 
