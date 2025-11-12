@@ -315,7 +315,7 @@ def menu_principal():
         "Relatórios": menu_relatorios,
         "Equipe": menu_equipe,
         "Projetos": menu_projetos,
-        "Site da Eloy": lambda: webbrowser.open("http://www.eloy.com.br"),
+        "Site da Eloy": lambda: webbrowser.open("https://gs-front-web-two.vercel.app/"),
         "Sair / Desligar Eloy": None
     }
 
