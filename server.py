@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-import os
+# server.py — Eloy minimal REST API (Chat Bot)
+
 import json
+import os
 import requests
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
@@ -11,56 +13,39 @@ GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 MODEL = os.getenv("ELOY_MODEL", "llama-3.3-70b-versatile")
 PORT = int(os.getenv("PORT", "10000"))
 
-# ================= System Prompt da Eloy =================
-SYSTEM_PROMPT = """Você é Eloy, assistente inteligente da empresa Eloy Soluções Corporativas.
+# ================= IA / Processador de mensagens =================
+SAUDACOES = ["oi", "olá", "ola", "hey", "hello", "bom dia", "boa tarde", "boa noite"]
 
-Informações sobre a Eloy:
-- Nome da Empresa: Eloy Soluções Corporativas
-- Data de Criação: 09/11/2025
-- Equipe: Lucas Toledo, Samuel Monteiro, Leonardo Silva
-- Especialidade: Soluções corporativas inovadoras
+def processar_com_groq(texto, contexto=None):
+    texto = texto.strip()
+    contexto = contexto or {}
 
-Você responde perguntas sobre a empresa, sua equipe, história e serviços com precisão e profissionalismo. 
-Seja amigável, prestativo e sempre representa bem a marca Eloy."""
+    # Saudações
+    if texto.lower() in SAUDACOES:
+        return {"resposta": "👋 Olá! Sou Eloy, seu assistente corporativo. Vamos conversar!", "contexto": contexto}
 
-# ================= Chat com Grok =================
-def chat_com_grok(mensagem_usuario: str) -> str:
-    """Envia mensagem ao Grok e retorna a resposta"""
-    if not XAI_API_KEY:
-        return "❌ Erro: Chave de API Grok não configurada. Configure XAI_API_KEY nas variáveis de ambiente."
-    
-    headers = {
-        "Authorization": f"Bearer {XAI_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    payload = {
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": mensagem_usuario}
-        ],
-        "temperature": 0.7,
-        "max_tokens": 1000
-    }
-    
-    try:
-        response = requests.post(GROK_URL, headers=headers, json=payload, timeout=30)
-        response.raise_for_status()
-        data = response.json()
-        
-        resposta = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        if not resposta:
-            return "⚠️ Resposta vazia do Grok. Tente novamente."
-        
-        return resposta
-    
-    except requests.exceptions.Timeout:
-        return "⏱️ Timeout ao conectar ao Grok. Tente novamente."
-    except requests.exceptions.RequestException as e:
-        return f"❌ Erro na requisição ao Grok: {str(e)}"
-    except Exception as e:
-        return f"❌ Erro inesperado: {str(e)}"
+    # Chat com IA
+    if GROQ_API_KEY:
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+        payload = {
+            "model": MODEL,
+            "messages": [
+                {"role": "system", "content": "Você é Eloy, assistente corporativo amigável e prestativo."},
+                {"role": "user", "content": texto}
+            ],
+            "temperature": 0.7
+        }
+        try:
+            res = requests.post(GROQ_URL, headers=headers, json=payload, timeout=20)
+            res.raise_for_status()
+            data = res.json()
+            resposta = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            return {"resposta": resposta, "contexto": contexto}
+        except Exception as e:
+            return {"resposta": f"(Erro ao consultar a IA: {e})", "contexto": contexto}
+    else:
+        # Modo teste
+        return {"resposta": "Eloy (modo teste): " + texto, "contexto": contexto}
 
 # ================= HTTP Handler =================
 class EloyHandler(BaseHTTPRequestHandler):
@@ -71,85 +56,45 @@ class EloyHandler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
-    
+
     def do_OPTIONS(self):
         self._set_headers()
-    
+
     def _read_json(self):
-        """Lê JSON do corpo da requisição"""
         length = int(self.headers.get('Content-Length', 0))
         if length == 0:
             return {}
+        raw = self.rfile.read(length).decode('utf-8')
         try:
-            raw = self.rfile.read(length).decode('utf-8')
             return json.loads(raw)
         except:
             return {}
-    
-    def log_message(self, format, *args):
-        """Silencia logs padrão do servidor"""
-        pass
-    
+
     def do_POST(self):
         path = urlparse(self.path).path
-        
+        body = self._read_json()
+
         if path == "/api/chat":
-            body = self._read_json()
-            mensagem = body.get("mensagem", "").strip()
-            
-            if not mensagem:
-                self._set_headers(400)
-                self.wfile.write(json.dumps({"erro": "Mensagem vazia"}).encode("utf-8"))
-                return
-            
-            # Envia para Grok e retorna resposta
-            resposta = chat_com_grok(mensagem)
-            
+            msg = body.get("mensagem", "")
+            contexto = body.get("contexto", {})
+            result = processar_com_groq(msg, contexto)
             self._set_headers()
-            self.wfile.write(json.dumps({
-                "resposta": resposta,
-                "status": "sucesso"
-            }).encode("utf-8"))
+            self.wfile.write(json.dumps(result).encode("utf-8"))
             return
-        
-        # Health check endpoint
-        if path == "/health":
-            self._set_headers()
-            self.wfile.write(json.dumps({"status": "online", "servico": "Eloy Chatbot"}).encode("utf-8"))
-            return
-        
+
         self._set_headers(404)
-        self.wfile.write(json.dumps({"erro": "Rota não encontrada"}).encode("utf-8"))
-    
-    def do_GET(self):
-        path = urlparse(self.path).path
-        
-        if path == "/health":
-            self._set_headers()
-            self.wfile.write(json.dumps({"status": "online", "servico": "Eloy Chatbot"}).encode("utf-8"))
-            return
-        
-        if path == "/":
-            self._set_headers(200, "text/plain")
-            self.wfile.write(b"Eloy Chatbot - Envie POST para /api/chat com {'mensagem': 'sua_mensagem'}")
-            return
-        
-        self._set_headers(404)
-        self.wfile.write(json.dumps({"erro": "Rota não encontrada"}).encode("utf-8"))
+        self.wfile.write(json.dumps({"error": "rota não encontrada"}).encode("utf-8"))
 
 # ================= Run =================
 def run(server_class=HTTPServer, handler_class=EloyHandler, port=PORT):
     server_address = ('', port)
     httpd = server_class(server_address, handler_class)
-    print(f"🌐 Eloy Chatbot listening at http://0.0.0.0:{port}")
-    print(f"📝 POST /api/chat para enviar mensagens")
-    print(f"💚 GET /health para verificar status")
+    print(f"🌐 Eloy server listening at http://0.0.0.0:{port}")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\n✋ Servidor encerrado")
-    finally:
-        httpd.server_close()
+        pass
+    httpd.server_close()
 
 if __name__ == '__main__':
     run()
