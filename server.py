@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# server.py — Eloy minimal REST API (Supabase + Groq) com menus e personalidade
+# server.py — Eloy minimal REST API (Supabase + Groq)
 
 import json
 import os
@@ -18,10 +18,6 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 PORT = int(os.getenv("PORT", "10000"))
-
-# ================= Sessão por usuário =================
-# Mantém estado do usuário no chat para menus
-SESSOES = {}  # { user_id: {"estado": None, "sub_estado": None} }
 
 # ================= Supabase helpers =================
 def listar_funcionarios():
@@ -55,140 +51,58 @@ def info_empresa():
     return res.data[0] if res.data else {"nome": "Eloy Soluções Corporativas", "fundacao": "2025-11-09"}
 
 # ================= IA / Processador de mensagens =================
-def processar_com_groq(user_id, texto):
+SAUDACOES = ["oi","olá","ola","hey","hello","bom dia","boa tarde","boa noite"]
+
+def processar_com_groq(texto):
     texto = texto.strip()
     low = texto.lower()
 
-    # Inicializa sessão se não existir
-    if user_id not in SESSOES:
-        SESSOES[user_id] = {"estado": None, "sub_estado": None}
+    # 1️⃣ Saudações curtas => menu principal
+    if low in SAUDACOES:
+        menu = (
+            "👋 Olá! Aqui está o menu principal do Eloy:\n"
+            "1 - Conversar com IA\n"
+            "2 - Relatórios\n"
+            "3 - Equipe\n"
+            "4 - Site da Eloy\n"
+            "5 - Sair / Desligar Eloy"
+        )
+        return {"resposta": menu, "action": "menu_principal"}
 
-    estado = SESSOES[user_id]["estado"]
+    # 2️⃣ Relatórios via formato data|conteúdo
+    if '|' in texto:
+        partes = texto.split('|',1)
+        date, conteudo = partes[0].strip(), partes[1].strip()
+        if len(date.split('/')) == 3:
+            adicionar_relatorio(date, conteudo)
+            return {"resposta": f"✅ Relatório de {date} adicionado com sucesso.\n📊 MENU DE RELATÓRIOS: 1 - Adicionar relatório 2 - Ver relatório por data 3 - Listar relatórios existentes 4 - Editar relatório 5 - Remover relatório 6 - Voltar", "action": "menu_relatorios"}
 
-    # Se o usuário estiver em um menu, processa a opção
-    if estado == "menu_relatorios":
-        return processar_menu_relatorios(user_id, low)
-    elif estado == "menu_equipe":
-        return processar_menu_equipe(user_id, low)
+    # 3️⃣ Menu de relatórios
+    if any(kw in low for kw in ["relatorio","relatório"]):
+        return {"resposta":"📊 MENU DE RELATÓRIOS: 1 - Adicionar relatório 2 - Ver relatório por data 3 - Listar relatórios existentes 4 - Editar relatório 5 - Remover relatório 6 - Voltar","action":"menu_relatorios"}
 
-    # Palavras-chave para menus
-    if any(kw in low for kw in ["relatorio","relatórios","adicionar relatório","ver relatório"]):
-        SESSOES[user_id]["estado"] = "menu_relatorios"
-        return {
-            "resposta": menu_relatorios_texto(),
-            "action": "menu_relatorios"
-        }
-    if any(kw in low for kw in ["equipe","membro","funcionário","funcionario"]):
-        SESSOES[user_id]["estado"] = "menu_equipe"
-        return {
-            "resposta": menu_equipe_texto(),
-            "action": "menu_equipe"
-        }
-    if any(kw in low for kw in ["tchau","adeus","sair","voltar"]):
-        SESSOES[user_id]["estado"] = None
-        return {"resposta":"Encerrando conversa. Até mais!", "action":"sair"}
+    # 4️⃣ Menu de equipe
+    if any(kw in low for kw in ["adicionar membro","membro","funcionario","funcionário","equipe"]):
+        return {"resposta":"👥 MENU DA EQUIPE: 1 - Ver empresa 2 - Adicionar membro 3 - Remover membro 4 - Editar cargo 5 - Voltar","action":"menu_equipe"}
 
-    # Se não houver chave de API, modo teste
-    if not GROQ_API_KEY or GROQ_API_KEY.strip() == "":
-        return {"resposta": f"Eloy (modo de teste): recebi sua mensagem: {texto}", "action": None}
+    # 5️⃣ Sair
+    if any(kw in low for kw in ["tchau","sair","voltar","adeus"]):
+        return {"resposta":"Encerrando conversa.","action":"sair"}
 
-    # Prompt da personalidade Eloy
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
-    payload = {
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": """
-Você é Eloy, assistente corporativo da Eloy Soluções Corporativas.
-- Profissional, simpático e direto.
-- Sempre sugira menus de Relatórios ou Equipe quando o usuário falar sobre isso.
-- Sempre ofereça a opção de voltar.
-- Mantenha respostas detalhadas e úteis.
-"""},
-            {"role": "user", "content": texto}
-        ],
-        "temperature": 0.7
-    }
-
-    try:
-        res = requests.post(GROQ_URL, headers=headers, json=payload, timeout=20)
-        res.raise_for_status()
-        data = res.json()
-        resposta = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        return {"resposta": resposta, "action": None}
-    except Exception as e:
-        return {"resposta": f"(Erro ao consultar a IA: {e})", "action": None}
-
-# ================= Menus =================
-def menu_relatorios_texto():
-    return (
-        "📊 MENU DE RELATÓRIOS:\n"
-        "1 - Adicionar relatório\n"
-        "2 - Ver relatório por data\n"
-        "3 - Listar relatórios existentes\n"
-        "4 - Editar relatório\n"
-        "5 - Remover relatório\n"
-        "6 - Voltar"
-    )
-
-def menu_equipe_texto():
-    return (
-        "👥 MENU DA EQUIPE:\n"
-        "1 - Ver informações da empresa\n"
-        "2 - Adicionar membro\n"
-        "3 - Remover membro\n"
-        "4 - Editar cargo de membro\n"
-        "5 - Voltar"
-    )
-
-def processar_menu_relatorios(user_id, low):
-    SESSOES[user_id]["estado"] = "menu_relatorios"
-    if low == "1":
-        SESSOES[user_id]["sub_estado"] = "adicionar"
-        return {"resposta": "Digite a data (DD/MM/AAAA) e o conteúdo do relatório separados por '|' (ex: 11/11/2025|Relatório aqui).", "action": None}
-    elif low == "2":
-        SESSOES[user_id]["sub_estado"] = "ver"
-        return {"resposta": "Digite a data do relatório que deseja ver (DD/MM/AAAA).", "action": None}
-    elif low == "3":
-        rels = listar_relatorios()
-        datas = [r["date"] for r in rels]
-        texto = "Relatórios existentes:\n" + "\n".join(datas) if datas else "Nenhum relatório cadastrado."
-        return {"resposta": texto, "action": None}
-    elif low == "4":
-        SESSOES[user_id]["sub_estado"] = "editar"
-        return {"resposta": "Digite a data do relatório a editar e o novo conteúdo separados por '|' (ex: 11/11/2025|Novo conteúdo).", "action": None}
-    elif low == "5":
-        SESSOES[user_id]["sub_estado"] = "remover"
-        return {"resposta": "Digite a data do relatório que deseja remover (DD/MM/AAAA).", "action": None}
-    elif low == "6":
-        SESSOES[user_id]["estado"] = None
-        SESSOES[user_id]["sub_estado"] = None
-        return {"resposta": "Voltando ao menu principal.", "action": "menu_sair"}
+    # 6️⃣ IA normal
+    if GROQ_API_KEY:
+        headers = {"Authorization": f"Bearer {GROQ_API_KEY}","Content-Type":"application/json"}
+        payload = {"model": MODEL,"messages":[{"role":"system","content":"Você é Eloy, assistente corporativo."},{"role":"user","content":texto}],"temperature":0.7}
+        try:
+            res = requests.post(GROQ_URL, headers=headers, json=payload, timeout=20)
+            res.raise_for_status()
+            data = res.json()
+            resposta = data.get("choices",[{}])[0].get("message",{}).get("content","")
+            return {"resposta": resposta,"action":None}
+        except Exception as e:
+            return {"resposta": f"(Erro ao consultar a IA: {e}).","action":None}
     else:
-        return {"resposta": "Opção inválida! " + menu_relatorios_texto(), "action": None}
-
-def processar_menu_equipe(user_id, low):
-    SESSOES[user_id]["estado"] = "menu_equipe"
-    if low == "1":
-        empresa = info_empresa()
-        funcs = listar_funcionarios()
-        texto = f"🏢 Empresa: {empresa['nome']}\n📅 Fundação: {empresa['fundacao']}\n👤 Funcionários:\n"
-        texto += "\n".join([f"- {f['nome']} ({f['cargo']})" for f in funcs]) if funcs else "Nenhum funcionário cadastrado."
-        return {"resposta": texto, "action": None}
-    elif low == "2":
-        SESSOES[user_id]["sub_estado"] = "adicionar"
-        return {"resposta": "Digite o nome e cargo do novo membro separados por '|' (ex: João|Desenvolvedor).", "action": None}
-    elif low == "3":
-        SESSOES[user_id]["sub_estado"] = "remover"
-        return {"resposta": "Digite o nome do membro que deseja remover.", "action": None}
-    elif low == "4":
-        SESSOES[user_id]["sub_estado"] = "editar"
-        return {"resposta": "Digite o nome do membro e o novo cargo separados por '|' (ex: João|Gerente).", "action": None}
-    elif low == "5":
-        SESSOES[user_id]["estado"] = None
-        SESSOES[user_id]["sub_estado"] = None
-        return {"resposta": "Voltando ao menu principal.", "action": "menu_sair"}
-    else:
-        return {"resposta": "Opção inválida! " + menu_equipe_texto(), "action": None}
+        return {"resposta": "Eloy (modo teste): " + texto,"action":None}
 
 # ================= HTTP Handler =================
 class EloyHandler(BaseHTTPRequestHandler):
@@ -213,8 +127,10 @@ class EloyHandler(BaseHTTPRequestHandler):
         except:
             return {}
 
+    # ================= GET =================
     def do_GET(self):
         path = urlparse(self.path).path
+
         if path == "/api/equipe":
             self._set_headers()
             self.wfile.write(json.dumps({
@@ -222,26 +138,109 @@ class EloyHandler(BaseHTTPRequestHandler):
                 "funcionarios": listar_funcionarios()
             }).encode("utf-8"))
             return
+
         if path == "/api/relatorios":
             self._set_headers()
             rels = listar_relatorios()
             datas = [r["date"] for r in rels]
             self.wfile.write(json.dumps({"relatorios": datas}).encode("utf-8"))
             return
+
+        if path.startswith("/api/relatorios/"):
+            date = unquote(path[len("/api/relatorios/"):])
+            rels = [r for r in listar_relatorios() if r["date"] == date]
+            if rels:
+                self._set_headers()
+                self.wfile.write(json.dumps({"date": date, "conteudo": rels[0]["texto"]}).encode("utf-8"))
+            else:
+                self._set_headers(404)
+                self.wfile.write(json.dumps({"error": "Relatório não encontrado"}).encode("utf-8"))
+            return
+
         self._set_headers(404)
         self.wfile.write(json.dumps({"error":"rota não encontrada"}).encode("utf-8"))
 
+    # ================= POST =================
     def do_POST(self):
         path = urlparse(self.path).path
         body = self._read_json()
-        user_id = body.get("user_id", "anon")  # Identificador do usuário no chat
-        msg = body.get("mensagem", "")
 
         if path == "/api/chat":
-            result = processar_com_groq(user_id, msg)
+            msg = body.get("mensagem", "")
+            result = processar_com_groq(msg)
             self._set_headers()
             self.wfile.write(json.dumps(result).encode("utf-8"))
             return
+
+        if path == "/api/equipe":
+            nome = body.get("nome")
+            cargo = body.get("cargo", "")
+            if not nome:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error":"nome obrigatório"}).encode("utf-8"))
+                return
+            adicionar_funcionario(nome, cargo)
+            self._set_headers(201)
+            self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
+            return
+
+        if path == "/api/relatorios":
+            date = body.get("date")
+            texto = body.get("texto","")
+            if not date or not texto:
+                self._set_headers(400)
+                self.wfile.write(json.dumps({"error":"date e texto obrigatórios"}).encode("utf-8"))
+                return
+            adicionar_relatorio(date, texto)
+            self._set_headers(201)
+            self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
+            return
+
+        self._set_headers(404)
+        self.wfile.write(json.dumps({"error":"rota não encontrada"}).encode("utf-8"))
+
+    # ================= PUT =================
+    def do_PUT(self):
+        path = urlparse(self.path).path
+        body = self._read_json()
+
+        if path.startswith("/api/equipe/"):
+            nome = unquote(path[len("/api/equipe/"):])
+            novo_cargo = body.get("cargo", "")
+            atualizar_funcionario(nome, novo_cargo)
+            self._set_headers()
+            self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
+            return
+
+        if path.startswith("/api/relatorios/"):
+            date = unquote(path[len("/api/relatorios/"):])
+            texto = body.get("texto", "")
+            atualizar_relatorio(date, texto)
+            self._set_headers()
+            self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
+            return
+
+        self._set_headers(404)
+        self.wfile.write(json.dumps({"error":"rota não encontrada"}).encode("utf-8"))
+
+    # ================= DELETE =================
+    def do_DELETE(self):
+        path = urlparse(self.path).path
+
+        if path.startswith("/api/equipe/"):
+            nome = unquote(path[len("/api/equipe/"):])
+            remover_funcionario(nome)
+            self._set_headers()
+            self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
+            return
+
+        if path.startswith("/api/relatorios/"):
+            date = unquote(path[len("/api/relatorios/"):])
+            remover_relatorio(date)
+            self._set_headers()
+            self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
+            return
+
         self._set_headers(404)
         self.wfile.write(json.dumps({"error":"rota não encontrada"}).encode("utf-8"))
 
