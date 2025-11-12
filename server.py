@@ -53,132 +53,130 @@ def info_empresa():
 # ================= IA / Processador de mensagens =================
 SAUDACOES = ["oi","olá","ola","hey","hello","bom dia","boa tarde","boa noite"]
 
+COMANDOS_RELATORIO = ["adicionar relatorio", "ver relatorio", "listar relatorio", "editar relatorio", "remover relatorio"]
+COMANDOS_MEMBRO = ["adicionar membro", "remover membro", "editar membro", "ver membro"]
+
 def processar_com_groq(texto, contexto=None):
     texto = texto.strip()
     low = texto.lower()
-    contexto = contexto or {"modo": "chat", "action": None}
+    contexto = contexto or {}
 
-    # ================= Contexto Relatorios =================
-    if contexto.get("modo") == "relatorios":
-        # Comandos prioritários
-        if "adicionar" in low:
-            contexto["action"] = "add_relatorio"
-            return {"resposta":"Digite a data (DD/MM/AAAA) e o conteúdo do relatório separados por '|' (ex: 11/11/2025|Relatório aqui).", "contexto": contexto}
-        elif "ver" in low:
-            contexto["action"] = "ver_relatorio"
+    # ================= Saudações e instruções iniciais =================
+    if low in SAUDACOES:
+        return {
+            "resposta":"👋 Olá! Posso conversar com você normalmente ou ajudá-lo com relatórios e equipe.\nDigite 'relatorios' para ver opções de relatórios ou 'equipe' para gerenciar membros.",
+            "action": None,
+            "contexto": contexto
+        }
+
+    # ================= Mostrar menus =================
+    if low == "relatorios":
+        return {"resposta":"Você está no módulo de relatórios. 📊 Opções: " + ", ".join(COMANDOS_RELATORIO),
+                "action":"menu_relatorios","contexto": contexto}
+    if low == "equipe":
+        return {"resposta":"Você está no módulo de equipe. 👥 Opções: " + ", ".join(COMANDOS_MEMBRO),
+                "action":"menu_equipe","contexto": contexto}
+
+    # ================= Relatórios =================
+    if low in COMANDOS_RELATORIO:
+        contexto["modo"] = "relatorio"
+        contexto["acao"] = low
+        if low == "adicionar relatorio":
+            return {"resposta":"Digite a data (DD/MM/AAAA) e o conteúdo separados por '|' (ex: 11/11/2025|Relatório aqui).",
+                    "action":"add_relatorio","contexto": contexto}
+        elif low == "ver relatorio":
             rels = listar_relatorios()
             if rels:
                 datas = [r["date"] for r in rels]
-                return {"resposta":f"Relatórios disponíveis: {', '.join(datas)}\nDigite a data desejada (DD/MM/AAAA) para visualizar:", "contexto": contexto}
+                return {"resposta":f"Relatórios disponíveis: {', '.join(datas)}\nDigite a data desejada (DD/MM/AAAA) para visualizar:",
+                        "action":"ver_relatorio","contexto": contexto}
             else:
-                return {"resposta":"Nenhum relatório cadastrado.", "contexto": contexto}
-        elif "listar" in low:
+                return {"resposta":"Nenhum relatório cadastrado.","action":None,"contexto": contexto}
+        elif low == "listar relatorio":
             rels = listar_relatorios()
             if rels:
                 datas = [r["date"] for r in rels]
-                return {"resposta":"Lista de relatórios: " + ", ".join(datas), "contexto": contexto}
+                return {"resposta":"Lista de relatórios: " + ", ".join(datas),"action":None,"contexto": contexto}
             else:
-                return {"resposta":"Lista de relatórios: Nenhum relatório cadastrado.", "contexto": contexto}
-        elif "editar" in low:
-            contexto["action"] = "edit_relatorio"
-            return {"resposta":"Digite a data (DD/MM/AAAA) do relatório que deseja editar e o novo conteúdo separados por '|' (ex: 11/11/2025|Novo conteúdo).", "contexto": contexto}
-        elif "remover" in low:
-            contexto["action"] = "remove_relatorio"
-            return {"resposta":"Digite a data (DD/MM/AAAA) do relatório que deseja remover:", "contexto": contexto}
-        elif "voltar" in low or "menu" in low:
-            contexto["modo"] = "chat"
-            contexto["action"] = None
-            return {"resposta":"Voltando ao chat normal. Você pode perguntar sobre relatórios ou equipe quando quiser.", "contexto": contexto}
-        # Processa inputs específicos de ação
-        elif "|" in texto and contexto.get("action") in ["add_relatorio","edit_relatorio"]:
-            partes = texto.split("|",1)
-            date, conteudo = partes[0].strip(), partes[1].strip()
-            if len(date.split("/")) == 3:
-                if contexto.get("action") == "add_relatorio":
-                    adicionar_relatorio(date, conteudo)
-                    contexto["action"] = None
-                    return {"resposta":f"✅ Relatório de {date} adicionado com sucesso.", "contexto": contexto}
-                elif contexto.get("action") == "edit_relatorio":
-                    atualizar_relatorio(date, conteudo)
-                    contexto["action"] = None
-                    return {"resposta":f"✏️ Relatório de {date} atualizado com sucesso.", "contexto": contexto}
-        elif contexto.get("action") in ["ver_relatorio","remove_relatorio"]:
-            date = texto.strip()
-            rels = [r for r in listar_relatorios() if r["date"] == date]
-            if contexto.get("action") == "ver_relatorio":
-                if rels:
-                    contexto["action"] = None
-                    return {"resposta":f"📄 {date}: {rels[0]['texto']}", "contexto": contexto}
-                else:
-                    datas = [r["date"] for r in listar_relatorios()]
-                    return {"resposta":f"⚠️ Relatório não encontrado. Datas disponíveis: {', '.join(datas)}", "contexto": contexto}
-            elif contexto.get("action") == "remove_relatorio":
-                if rels:
-                    remover_relatorio(date)
-                    contexto["action"] = None
-                    return {"resposta":f"🗑️ Relatório de {date} removido.", "contexto": contexto}
-                else:
-                    datas = [r["date"] for r in listar_relatorios()]
-                    return {"resposta":f"⚠️ Relatório não encontrado. Datas disponíveis: {', '.join(datas)}", "contexto": contexto}
-        else:
-            return {"resposta":"Opção inválida. Digite: adicionar, ver, listar, editar, remover ou voltar.", "contexto": contexto}
+                return {"resposta":"Lista de relatórios: Nenhum relatório cadastrado.","action":None,"contexto": contexto}
+        elif low == "editar relatorio":
+            return {"resposta":"Digite a data (DD/MM/AAAA) e o novo conteúdo separados por '|' (ex: 11/11/2025|Novo conteúdo).",
+                    "action":"edit_relatorio","contexto": contexto}
+        elif low == "remover relatorio":
+            return {"resposta":"Digite a data (DD/MM/AAAA) do relatório que deseja remover:",
+                    "action":"remove_relatorio","contexto": contexto}
 
-    # ================= Contexto Equipe =================
-    if contexto.get("modo") == "equipe":
-        if "ver" in low:
-            empresa = info_empresa()
+    # ================= Membros =================
+    if low in COMANDOS_MEMBRO:
+        contexto["modo"] = "membro"
+        contexto["acao"] = low
+        if low == "adicionar membro":
+            return {"resposta":"Digite o nome e cargo separados por '|' (ex: Lucas Toledo|Desenvolvedor).",
+                    "action":"add_membro","contexto": contexto}
+        elif low == "remover membro":
+            return {"resposta":"Digite o nome do membro a remover:","action":"remove_membro","contexto": contexto}
+        elif low == "editar membro":
+            return {"resposta":"Digite o nome e novo cargo separados por '|' (ex: Lucas Toledo|Coordenador).",
+                    "action":"edit_membro","contexto": contexto}
+        elif low == "ver membro":
             funcionarios = listar_funcionarios()
             lista = "\n".join([f"{f['nome']} ({f['cargo']})" for f in funcionarios])
-            contexto["action"] = None
-            return {"resposta":f"🏢 Empresa: {empresa['nome']}\n📅 Fundação: {empresa['fundacao']}\n👤 Funcionários:\n{lista if lista else 'Nenhum funcionário cadastrado.'}", "contexto": contexto}
-        elif "adicionar" in low:
-            contexto["action"] = "add_membro"
-            return {"resposta":"Digite o nome e cargo do membro separados por '|' (ex: Lucas Toledo|Desenvolvedor).", "contexto": contexto}
-        elif "remover" in low:
-            contexto["action"] = "remove_membro"
-            return {"resposta":"Digite o nome do membro a remover:", "contexto": contexto}
-        elif "editar" in low:
-            contexto["action"] = "edit_membro"
-            return {"resposta":"Digite o nome do membro e novo cargo separados por '|' (ex: Lucas Toledo|Coordenador).", "contexto": contexto}
-        elif "voltar" in low or "menu" in low:
-            contexto["modo"] = "chat"
-            contexto["action"] = None
-            return {"resposta":"Voltando ao chat normal. Você pode perguntar sobre relatórios ou equipe quando quiser.", "contexto": contexto}
-        # Processa inputs específicos de ação
-        elif "|" in texto and contexto.get("action") in ["add_membro","edit_membro"]:
-            partes = texto.split("|",1)
-            nome, cargo = partes[0].strip(), partes[1].strip()
-            if contexto.get("action") == "add_membro":
-                adicionar_funcionario(nome, cargo)
-                contexto["action"] = None
-                return {"resposta":f"✅ Membro {nome} adicionado com sucesso.", "contexto": contexto}
-            elif contexto.get("action") == "edit_membro":
-                atualizar_funcionario(nome, cargo)
-                contexto["action"] = None
-                return {"resposta":f"✏️ Cargo de {nome} atualizado para {cargo}.", "contexto": contexto}
-        elif contexto.get("action") == "remove_membro":
+            resp = f"👥 Funcionários:\n{lista if lista else 'Nenhum funcionário cadastrado.'}"
+            return {"resposta": resp,"action":None,"contexto": contexto}
+
+    # ================= Mensagem de instrução para palavra isolada =================
+    palavras = low.split()
+    if len(palavras) == 1 and palavras[0] in ["adicionar","remover","editar","ver","listar"]:
+        return {"resposta": f"⚠️ Por favor, use o comando composto completo (por exemplo: '{palavras[0]} relatorio' ou '{palavras[0]} membro').",
+                "action": None,"contexto": contexto}
+
+    # ================= Processar ações já em andamento =================
+    if contexto.get("modo") == "relatorio":
+        if contexto.get("acao") == "adicionar relatorio" and "|" in texto:
+            date, conteudo = texto.split("|",1)
+            adicionar_relatorio(date.strip(), conteudo.strip())
+            return {"resposta":f"✅ Relatório de {date.strip()} adicionado com sucesso.","action":None,"contexto": contexto}
+        elif contexto.get("acao") == "editar relatorio" and "|" in texto:
+            date, conteudo = texto.split("|",1)
+            atualizar_relatorio(date.strip(), conteudo.strip())
+            return {"resposta":f"✏️ Relatório de {date.strip()} atualizado.","action":None,"contexto": contexto}
+        elif contexto.get("acao") == "remove_relatorio":
+            date = texto.strip()
+            rels = [r for r in listar_relatorios() if r["date"] == date]
+            if rels:
+                remover_relatorio(date)
+                return {"resposta":f"🗑️ Relatório de {date} removido.","action":None,"contexto": contexto}
+            else:
+                datas = [r["date"] for r in listar_relatorios()]
+                return {"resposta": f"⚠️ Relatório não encontrado. Datas disponíveis: {', '.join(datas)}","action":None,"contexto": contexto}
+        elif contexto.get("acao") == "ver relatorio":
+            date = texto.strip()
+            rels = [r for r in listar_relatorios() if r["date"] == date]
+            if rels:
+                return {"resposta": f"📄 {date}: {rels[0]['texto']}","action":None,"contexto": contexto}
+            else:
+                datas = [r["date"] for r in listar_relatorios()]
+                return {"resposta": f"⚠️ Relatório não encontrado. Datas disponíveis: {', '.join(datas)}","action":None,"contexto": contexto}
+
+    if contexto.get("modo") == "membro":
+        if contexto.get("acao") == "add_membro" and "|" in texto:
+            nome, cargo = texto.split("|",1)
+            adicionar_funcionario(nome.strip(), cargo.strip())
+            return {"resposta":f"✅ Membro {nome.strip()} adicionado com sucesso.","action":None,"contexto": contexto}
+        elif contexto.get("acao") == "edit_membro" and "|" in texto:
+            nome, cargo = texto.split("|",1)
+            atualizar_funcionario(nome.strip(), cargo.strip())
+            return {"resposta":f"✏️ Cargo de {nome.strip()} atualizado para {cargo.strip()}.","action":None,"contexto": contexto}
+        elif contexto.get("acao") == "remove_membro":
             nome = texto.strip()
             funcionarios = [f for f in listar_funcionarios() if f["nome"].lower() != nome.lower()]
             if len(funcionarios) != len(listar_funcionarios()):
                 remover_funcionario(nome)
-                contexto["action"] = None
-                return {"resposta":f"🗑️ Membro {nome} removido.", "contexto": contexto}
+                return {"resposta":f"🗑️ Membro {nome} removido.","action":None,"contexto": contexto}
             else:
-                return {"resposta":f"⚠️ Membro não encontrado.", "contexto": contexto}
-        else:
-            return {"resposta":"Opção inválida. Digite: ver, adicionar, remover, editar ou voltar.", "contexto": contexto}
+                return {"resposta":f"⚠️ Membro não encontrado.","action":None,"contexto": contexto}
 
     # ================= Chat normal =================
-    if low in SAUDACOES:
-        return {"resposta":"👋 Olá! Posso conversar com você normalmente ou ajudá-lo com relatórios e equipe. Digite 'relatorios' ou 'equipe' para começar.", "contexto": contexto}
-    elif "relatorios" in low:
-        contexto["modo"] = "relatorios"
-        return {"resposta":"Você está no módulo de relatórios. 📊 Opções de Relatórios: adicionar, ver, listar, editar, remover", "contexto": contexto}
-    elif "equipe" in low:
-        contexto["modo"] = "equipe"
-        return {"resposta":"Você está no módulo de equipe. 👥 Opções: ver, adicionar, remover, editar", "contexto": contexto}
-
-    # Fallback para IA
     if GROQ_API_KEY:
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}","Content-Type":"application/json"}
         payload = {"model": MODEL,"messages":[{"role":"system","content":"Você é Eloy, assistente corporativo."},{"role":"user","content":texto}],"temperature":0.7}
@@ -187,11 +185,11 @@ def processar_com_groq(texto, contexto=None):
             res.raise_for_status()
             data = res.json()
             resposta = data.get("choices",[{}])[0].get("message",{}).get("content","")
-            return {"resposta": resposta,"contexto": contexto}
+            return {"resposta": resposta,"action":None,"contexto": contexto}
         except Exception as e:
-            return {"resposta": f"(Erro ao consultar a IA: {e}).","contexto": contexto}
+            return {"resposta": f"(Erro ao consultar a IA: {e}).","action":None,"contexto": contexto}
     else:
-        return {"resposta": "Eloy (modo teste): " + texto,"contexto": contexto}
+        return {"resposta": "Eloy (modo teste): " + texto,"action":None,"contexto": contexto}
 
 # ================= HTTP Handler =================
 class EloyHandler(BaseHTTPRequestHandler):
@@ -254,7 +252,7 @@ class EloyHandler(BaseHTTPRequestHandler):
 
         if path == "/api/chat":
             msg = body.get("mensagem", "")
-            contexto = body.get("contexto", {"modo": "chat"})
+            contexto = body.get("contexto", {})
             result = processar_com_groq(msg, contexto)
             self._set_headers()
             self.wfile.write(json.dumps(result).encode("utf-8"))
