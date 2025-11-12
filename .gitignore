@@ -1,18 +1,7 @@
-# Python cache
 __pycache__/
 *.pyc
-*.pyo
-
-# Ambiente virtual
-venv/
-.env/
-.venv/
-
-# Configurações locais
+.env
+node_modules/
+build/
+dist/
 .DS_Store
-*.log
-
-# Arquivos temporários
-*.tmp
-*.bak
-*~
