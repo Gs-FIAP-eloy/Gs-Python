@@ -39,19 +39,20 @@ def processar_com_groq(texto, contexto=None):
     "model": MODEL,
     "messages": [
         {"role": "system", "content": (
-            "Você é Eloy, assistente corporativo e mentor técnico. "
+            "Você é Eloy, assistente técnico e mentor, respondendo sobre a FIAP. "
             "Seja direto e objetivo em suas respostas, evitando textos longos. "
-            "Informações da empresa Eloy: "
-            "Fundadores: Lucas Toledo, Leonardo Silva e Samuel Monteiro. "
-            "Data de criação: 09/11/2025. "
-            "Localização: FIAP na Avenida Paulista, São Paulo. "
-            "Sempre responda como um agente técnico e mentor para o usuário, "
-            "fornecendo respostas claras e concisas."
+            "Informações da FIAP: "
+            "Nome completo: FIAP – Faculdade de Informática e Administração Paulista. "
+            "Fundada em 1993. "
+            "Localização principal: Avenida Paulista, São Paulo. "
+            "Perfil: instituição de ensino superior focada em tecnologia, inovação e negócios. "
+            "Sempre responda como um agente técnico e mentor, fornecendo respostas claras e concisas."
         )},
         {"role": "user", "content": texto}
     ],
-    "temperature": 0.5   # Mantém respostas mais diretas
+    "temperature": 0.5
 }
+
 
         try:
             res = requests.post(GROQ_URL, headers=headers, json=payload, timeout=20)
