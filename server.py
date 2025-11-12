@@ -6,10 +6,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
 
 # ================= Config =================
-XAI_API_KEY = os.getenv("XAI_API_KEY")
-GROK_URL = "https://api.x.ai/v1/chat/completions"
-MODEL = "grok-2-1212"
-
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+MODEL = os.getenv("ELOY_MODEL", "llama-3.3-70b-versatile")
 PORT = int(os.getenv("PORT", "10000"))
 
 # ================= System Prompt da Eloy =================
