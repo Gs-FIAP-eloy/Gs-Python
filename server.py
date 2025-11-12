@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# server.py — Eloy minimal REST API (Supabase + Groq)
+# server.py — Eloy minimal REST API (Supabase + Groq) com menus separados
 
 import json
 import os
@@ -19,10 +19,10 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 PORT = int(os.getenv("PORT", "10000"))
 
-# ================= Supabase helpers =================
+# ================= Helpers =================
 def listar_funcionarios():
     res = supabase.table("funcionarios").select("*").execute()
-    return res.data if res.data else []
+    return res.data or []
 
 def adicionar_funcionario(nome, cargo):
     supabase.table("funcionarios").insert({"nome": nome, "cargo": cargo}).execute()
@@ -35,7 +35,7 @@ def remover_funcionario(nome):
 
 def listar_relatorios():
     res = supabase.table("relatorios").select("*").execute()
-    return res.data if res.data else []
+    return res.data or []
 
 def adicionar_relatorio(date, texto):
     supabase.table("relatorios").insert({"date": date, "texto": texto}).execute()
@@ -50,152 +50,129 @@ def info_empresa():
     res = supabase.table("empresa").select("*").execute()
     return res.data[0] if res.data else {"nome": "Eloy Soluções Corporativas", "fundacao": "2025-11-09"}
 
-# ================= IA / Processador de mensagens =================
+# ================= Menus =================
 SAUDACOES = ["oi","olá","ola","hey","hello","bom dia","boa tarde","boa noite"]
-COMANDOS_RELATORIO = ["adicionar relatorio", "ver relatorio", "listar relatorio", "editar relatorio", "remover relatorio"]
-COMANDOS_MEMBRO = ["adicionar membro", "remover membro", "editar membro", "ver membro"]
+COMANDOS_RELATORIO = ["adicionar relatorio","ver relatorio","listar relatorio","editar relatorio","remover relatorio"]
+COMANDOS_MEMBRO = ["adicionar membro","remover membro","editar membro","ver membro"]
 
-def processar_com_groq(texto, contexto=None):
-    texto = texto.strip()
-    low = texto.lower()
+# ================= Processador =================
+def processar_mensagem(msg, contexto=None):
     contexto = contexto or {}
+    texto = msg.strip()
+    low = texto.lower()
 
-    # ================= Saudações =================
-    if low in SAUDACOES and not contexto.get("modo"):
+    # ===== Menu inicial =====
+    if low in SAUDACOES and not contexto.get("menu"):
         return {
-            "resposta":"👋 Olá! Posso conversar com você normalmente ou ajudá-lo com relatórios e equipe.\nDigite 'relatorios' para ver opções de relatórios ou 'equipe' para gerenciar membros.",
+            "resposta":"👋 Olá! Escolha um menu:\n- chat\n- relatorios\n- equipe",
             "action": None,
             "contexto": contexto
         }
 
-    # ================= Menus =================
-    if low == "relatorios" and not contexto.get("modo"):
-        return {"resposta":"Você está no módulo de relatórios. 📊 Opções: " + ", ".join(COMANDOS_RELATORIO),
+    # ===== Menu chat =====
+    if contexto.get("menu") == "chat":
+        if low == "sair":
+            contexto.clear()
+            return {"resposta":"Saindo do chat. Digite 'chat', 'relatorios' ou 'equipe' para voltar ao menu principal.",
+                    "action":None,"contexto": contexto}
+        # enviar para Groq
+        if GROQ_API_KEY:
+            headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type":"application/json"}
+            payload = {"model": MODEL,
+                       "messages":[{"role":"system","content":"Você é Eloy, assistente corporativo."},
+                                   {"role":"user","content":texto}],
+                       "temperature":0.7}
+            try:
+                res = requests.post(GROQ_URL, headers=headers, json=payload, timeout=20)
+                res.raise_for_status()
+                data = res.json()
+                resposta = data.get("choices",[{}])[0].get("message",{}).get("content","")
+                return {"resposta": resposta, "action": None, "contexto": contexto}
+            except Exception as e:
+                return {"resposta": f"(Erro na IA: {e})", "action": None, "contexto": contexto}
+
+    # ===== Menu relatorios =====
+    if low == "relatorios" and not contexto.get("menu"):
+        contexto["menu"] = "relatorios"
+        return {"resposta":"📊 Menu Relatórios:\n" + "\n".join(COMANDOS_RELATORIO) + "\nDigite o comando ou 'sair' para voltar.",
                 "action":"menu_relatorios","contexto": contexto}
-    if low == "equipe" and not contexto.get("modo"):
-        return {"resposta":"Você está no módulo de equipe. 👥 Opções: " + ", ".join(COMANDOS_MEMBRO),
-                "action":"menu_equipe","contexto": contexto}
 
-    # ================= Palavras isoladas =================
-    palavras = low.split()
-    if len(palavras) == 1 and palavras[0] in ["adicionar","remover","editar","ver","listar"]:
-        return {"resposta": f"⚠️ Por favor, use o comando composto completo (por exemplo: '{palavras[0]} relatorio' ou '{palavras[0]} membro').",
-                "action": None,"contexto": contexto}
-
-    # ================= Comandos compostos =================
-    if low in COMANDOS_RELATORIO + COMANDOS_MEMBRO and not contexto.get("modo"):
-        contexto["modo"] = "relatorio" if "relatorio" in low else "membro"
+    if contexto.get("menu") == "relatorios":
+        if low == "sair":
+            contexto.clear()
+            return {"resposta":"Saindo do menu Relatórios.","action":None,"contexto": contexto}
         contexto["acao"] = low
-
-        if low == "adicionar relatorio":
-            return {"resposta":"Digite a data (DD/MM/AAAA) e o conteúdo separados por '|' (ex: 11/11/2025|Relatório aqui).",
-                    "action":"add_relatorio","contexto": contexto}
-        if low == "ver relatorio":
-            rels = listar_relatorios()
-            if rels:
-                datas = [r["date"] for r in rels]
-                return {"resposta":f"Relatórios disponíveis: {', '.join(datas)}\nDigite a data desejada (DD/MM/AAAA) para visualizar:",
-                        "action":"ver_relatorio","contexto": contexto}
-            else:
-                return {"resposta":"Nenhum relatório cadastrado.","action":None,"contexto": contexto}
-        if low == "listar relatorio":
-            rels = listar_relatorios()
-            if rels:
-                datas = [r["date"] for r in rels]
-                return {"resposta":"Lista de relatórios: " + ", ".join(datas),"action":None,"contexto": contexto}
-            else:
-                return {"resposta":"Lista de relatórios: Nenhum relatório cadastrado.","action":None,"contexto": contexto}
-        if low == "editar relatorio":
-            return {"resposta":"Digite a data (DD/MM/AAAA) e o novo conteúdo separados por '|' (ex: 11/11/2025|Novo conteúdo).",
-                    "action":"edit_relatorio","contexto": contexto}
-        if low == "remover relatorio":
-            return {"resposta":"Digite a data (DD/MM/AAAA) do relatório que deseja remover:",
-                    "action":"remove_relatorio","contexto": contexto}
-
-        # ================= Membros =================
-        if low == "adicionar membro":
-            return {"resposta":"Digite o nome e cargo separados por '|' (ex: Lucas Toledo|Desenvolvedor).",
-                    "action":"add_membro","contexto": contexto}
-        if low == "remover membro":
-            return {"resposta":"Digite o nome do membro a remover:","action":"remove_membro","contexto": contexto}
-        if low == "editar membro":
-            return {"resposta":"Digite o nome e novo cargo separados por '|' (ex: Lucas Toledo|Coordenador).",
-                    "action":"edit_membro","contexto": contexto}
-        if low == "ver membro":
-            funcionarios = listar_funcionarios()
-            lista = "\n".join([f"{f['nome']} ({f['cargo']})" for f in funcionarios])
-            resp = f"👥 Funcionários:\n{lista if lista else 'Nenhum funcionário cadastrado.'}"
-            return {"resposta": resp,"action":None,"contexto": contexto}
-
-    # ================= Processar ações em andamento =================
-    if contexto.get("modo") == "relatorio":
         acao = contexto.get("acao")
-        if acao in ["adicionar relatorio","editar relatorio"] and "|" in texto:
+        # Listar relatórios
+        if acao == "listar relatorio":
+            rels = listar_relatorios()
+            datas = [r["date"] for r in rels]
+            return {"resposta":"Lista de relatórios: " + (", ".join(datas) if datas else "Nenhum relatório"),
+                    "action":None,"contexto": contexto}
+        # Adicionar ou editar relatório
+        if acao in ["adicionar relatorio","editar relatorio"]:
+            if "|" not in texto:
+                return {"resposta":"Digite a data e o conteúdo separados por '|' (ex: 14/11/2025|Conteúdo).",
+                        "action":acao,"contexto": contexto}
             date, conteudo = texto.split("|",1)
             if acao == "adicionar relatorio":
                 adicionar_relatorio(date.strip(), conteudo.strip())
                 contexto.clear()
-                return {"resposta":f"✅ Relatório de {date.strip()} adicionado com sucesso.","action":None,"contexto": contexto}
+                return {"resposta":f"✅ Relatório {date.strip()} adicionado.","action":None,"contexto": contexto}
             else:
                 atualizar_relatorio(date.strip(), conteudo.strip())
                 contexto.clear()
-                return {"resposta":f"✏️ Relatório de {date.strip()} atualizado.","action":None,"contexto": contexto}
-        if acao == "remover relatorio":
-            date = texto.strip()
-            rels = [r for r in listar_relatorios() if r["date"] == date]
-            if rels:
-                remover_relatorio(date)
-                contexto.clear()
-                return {"resposta":f"🗑️ Relatório de {date} removido.","action":None,"contexto": contexto}
-            else:
-                datas = [r["date"] for r in listar_relatorios()]
-                return {"resposta": f"⚠️ Relatório não encontrado. Datas disponíveis: {', '.join(datas)}","action":None,"contexto": contexto}
+                return {"resposta":f"✏️ Relatório {date.strip()} atualizado.","action":None,"contexto": contexto}
+        # Ver relatório
         if acao == "ver relatorio":
             date = texto.strip()
             rels = [r for r in listar_relatorios() if r["date"] == date]
             if rels:
                 contexto.clear()
-                return {"resposta": f"📄 {date}: {rels[0]['texto']}","action":None,"contexto": contexto}
+                return {"resposta":rels[0]["texto"],"action":None,"contexto": contexto}
             else:
-                datas = [r["date"] for r in listar_relatorios()]
-                return {"resposta": f"⚠️ Relatório não encontrado. Datas disponíveis: {', '.join(datas)}","action":None,"contexto": contexto}
+                return {"resposta":"⚠️ Relatório não encontrado.","action":None,"contexto": contexto}
+        # Remover relatório
+        if acao == "remover relatorio":
+            date = texto.strip()
+            remover_relatorio(date)
+            contexto.clear()
+            return {"resposta":f"🗑️ Relatório {date} removido.","action":None,"contexto": contexto}
 
-    if contexto.get("modo") == "membro":
+    # ===== Menu equipe =====
+    if low == "equipe" and not contexto.get("menu"):
+        contexto["menu"] = "equipe"
+        return {"resposta":"👥 Menu Equipe:\n" + "\n".join(COMANDOS_MEMBRO) + "\nDigite o comando ou 'sair' para voltar.",
+                "action":"menu_equipe","contexto": contexto}
+
+    if contexto.get("menu") == "equipe":
+        if low == "sair":
+            contexto.clear()
+            return {"resposta":"Saindo do menu Equipe.","action":None,"contexto": contexto}
+        contexto["acao"] = low
         acao = contexto.get("acao")
-        if acao in ["add_membro","edit_membro"] and "|" in texto:
+        if acao in ["adicionar membro","editar membro"] and "|" in texto:
             nome, cargo = texto.split("|",1)
-            if acao == "add_membro":
+            if acao == "adicionar membro":
                 adicionar_funcionario(nome.strip(), cargo.strip())
                 contexto.clear()
-                return {"resposta":f"✅ Membro {nome.strip()} adicionado com sucesso.","action":None,"contexto": contexto}
+                return {"resposta":f"✅ Membro {nome.strip()} adicionado.","action":None,"contexto": contexto}
             else:
                 atualizar_funcionario(nome.strip(), cargo.strip())
                 contexto.clear()
-                return {"resposta":f"✏️ Cargo de {nome.strip()} atualizado para {cargo.strip()}","action":None,"contexto": contexto}
-        if acao == "remove_membro":
+                return {"resposta":f"✏️ Cargo de {nome.strip()} atualizado.","action":None,"contexto": contexto}
+        if acao == "remover membro":
             nome = texto.strip()
-            funcionarios = [f for f in listar_funcionarios() if f["nome"].lower() != nome.lower()]
-            if len(funcionarios) != len(listar_funcionarios()):
-                remover_funcionario(nome)
-                contexto.clear()
-                return {"resposta":f"🗑️ Membro {nome} removido.","action":None,"contexto": contexto}
-            else:
-                return {"resposta":f"⚠️ Membro não encontrado.","action":None,"contexto": contexto}
+            remover_funcionario(nome)
+            contexto.clear()
+            return {"resposta":f"🗑️ Membro {nome} removido.","action":None,"contexto": contexto}
+        if acao == "ver membro":
+            membros = listar_funcionarios()
+            lista = "\n".join([f"{m['nome']} ({m['cargo']})" for m in membros])
+            return {"resposta":lista if lista else "Nenhum membro cadastrado.","action":None,"contexto": contexto}
 
-    # ================= Chat normal só se não houver contexto =================
-    if not contexto.get("modo") and GROQ_API_KEY:
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY}","Content-Type":"application/json"}
-        payload = {"model": MODEL,"messages":[{"role":"system","content":"Você é Eloy, assistente corporativo."},{"role":"user","content":texto}],"temperature":0.7}
-        try:
-            res = requests.post(GROQ_URL, headers=headers, json=payload, timeout=20)
-            res.raise_for_status()
-            data = res.json()
-            resposta = data.get("choices",[{}])[0].get("message",{}).get("content","")
-            return {"resposta": resposta,"action":None,"contexto": contexto}
-        except Exception as e:
-            return {"resposta": f"(Erro ao consultar a IA: {e}).","action":None,"contexto": contexto}
-    else:
-        return {"resposta": "Eloy (modo teste): " + texto,"action":None,"contexto": contexto}
+    # ===== Fallback =====
+    return {"resposta":"⚠️ Comando não reconhecido. Digite 'chat', 'relatorios' ou 'equipe'.","action":None,"contexto": contexto}
 
 # ================= HTTP Handler =================
 class EloyHandler(BaseHTTPRequestHandler):
@@ -220,6 +197,7 @@ class EloyHandler(BaseHTTPRequestHandler):
         except:
             return {}
 
+    # ========== GET ==========
     def do_GET(self):
         path = urlparse(self.path).path
         if path == "/api/equipe":
@@ -248,13 +226,14 @@ class EloyHandler(BaseHTTPRequestHandler):
         self._set_headers(404)
         self.wfile.write(json.dumps({"error":"rota não encontrada"}).encode("utf-8"))
 
+    # ========== POST ==========
     def do_POST(self):
         path = urlparse(self.path).path
         body = self._read_json()
         if path == "/api/chat":
             msg = body.get("mensagem", "")
             contexto = body.get("contexto", {})
-            result = processar_com_groq(msg, contexto)
+            result = processar_mensagem(msg, contexto)
             self._set_headers()
             self.wfile.write(json.dumps(result).encode("utf-8"))
             return
@@ -283,7 +262,7 @@ class EloyHandler(BaseHTTPRequestHandler):
         self._set_headers(404)
         self.wfile.write(json.dumps({"error":"rota não encontrada"}).encode("utf-8"))
 
-# ================= Run =================
+# ================= Run Server =================
 def run(server_class=HTTPServer, handler_class=EloyHandler, port=PORT):
     server_address = ('', port)
     httpd = server_class(server_address, handler_class)
@@ -291,7 +270,7 @@ def run(server_class=HTTPServer, handler_class=EloyHandler, port=PORT):
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        pass
+        print("\nServidor finalizado.")
     httpd.server_close()
 
 if __name__ == '__main__':
