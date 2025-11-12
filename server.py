@@ -19,9 +19,33 @@ SAUDACOES = ["oi", "olá", "ola", "hey", "hello", "bom dia", "boa tarde", "boa n
 def processar_com_groq(texto, contexto=None):
     texto = texto.strip()
     low = texto.lower()
-    contexto = contexto or {}
 
-    # Saudações
+    # Contexto pode ser string (frontend envia) ou lista de mensagens
+    contexto_formatado = []
+    if isinstance(contexto, str):
+        # Divide o contexto linha a linha, no formato "Usuário: xxx" / "Eloy: yyy"
+        for linha in contexto.splitlines():
+            linha = linha.strip()
+            if not linha:
+                continue
+            if linha.lower().startswith("usuário:") or linha.lower().startswith("usuario:"):
+                contexto_formatado.append({
+                    "role": "user",
+                    "content": linha.split(":", 1)[1].strip()
+                })
+            elif linha.lower().startswith("eloy:"):
+                contexto_formatado.append({
+                    "role": "assistant",
+                    "content": linha.split(":", 1)[1].strip()
+                })
+    elif isinstance(contexto, list):
+        # Caso o frontend envie um array (compatibilidade)
+        for item in contexto:
+            if isinstance(item, dict) and "role" in item and "content" in item:
+                contexto_formatado.append(item)
+
+    # Saudações diretas
+    SAUDACOES = ["oi", "olá", "ola", "hey", "hello", "bom dia", "boa tarde", "boa noite"]
     if low in SAUDACOES:
         return {
             "resposta": "👋 Olá! Eu sou Eloy, seu assistente corporativo. Podemos conversar normalmente.",
@@ -29,42 +53,39 @@ def processar_com_groq(texto, contexto=None):
             "contexto": contexto
         }
 
-    # Chat normal
-    if GROQ_API_KEY:
+    # Criação do payload com contexto real
+    payload = {
+        "model": MODEL,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "Você é Eloy, um assistente técnico e mentor especializado em tecnologia e FIAP. "
+                    "Responda de forma direta, objetiva e profissional. "
+                    "Seja claro, sem enrolação, e mantenha sempre um tom humano e atencioso."
+                )
+            },
+            *contexto_formatado,  # Histórico de conversa
+            {"role": "user", "content": texto}  # Mensagem atual
+        ],
+        "temperature": 0.5
+    }
+
+    if not GROQ_API_KEY:
+        return {"resposta": "Eloy (modo teste): " + texto, "action": None, "contexto": contexto}
+
+    try:
         headers = {
             "Authorization": f"Bearer {GROQ_API_KEY}",
             "Content-Type": "application/json"
         }
-        payload = {
-    "model": MODEL,
-    "messages": [
-        {"role": "system", "content": (
-            "Você é Eloy, assistente técnico e mentor, respondendo sobre a FIAP. "
-            "Seja direto e objetivo em suas respostas, evitando textos longos. "
-            "Informações da FIAP: "
-            "Nome completo: FIAP – Faculdade de Informática e Administração Paulista. "
-            "Fundada em 1993. "
-            "Localização principal: Avenida Paulista, São Paulo. "
-            "Perfil: instituição de ensino superior focada em tecnologia, inovação e negócios. "
-            "Sempre responda como um agente técnico e mentor, fornecendo respostas claras e concisas."
-        )},
-        {"role": "user", "content": texto}
-    ],
-    "temperature": 0.5
-}
-
-
-        try:
-            res = requests.post(GROQ_URL, headers=headers, json=payload, timeout=20)
-            res.raise_for_status()
-            data = res.json()
-            resposta = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            return {"resposta": resposta, "action": None, "contexto": contexto}
-        except Exception as e:
-            return {"resposta": f"(Erro ao consultar a IA: {e})", "action": None, "contexto": contexto}
-    else:
-        # Modo teste sem chave
-        return {"resposta": "Eloy (modo teste): " + texto, "action": None, "contexto": contexto}
+        res = requests.post(GROQ_URL, headers=headers, json=payload, timeout=20)
+        res.raise_for_status()
+        data = res.json()
+        resposta = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        return {"resposta": resposta, "action": None, "contexto": contexto}
+    except Exception as e:
+        return {"resposta": f"(Erro ao consultar a IA: {e})", "action": None, "contexto": contexto}
 
 # ================= HTTP Handler =================
 class EloyHandler(BaseHTTPRequestHandler):
