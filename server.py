@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-# server.py — Eloy minimal REST API (Chat Bot)
+# server.py — Eloy minimal REST API (apenas chat via Groq)
 
-import json
 import os
+import json
 import requests
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse
@@ -18,19 +18,27 @@ SAUDACOES = ["oi", "olá", "ola", "hey", "hello", "bom dia", "boa tarde", "boa n
 
 def processar_com_groq(texto, contexto=None):
     texto = texto.strip()
+    low = texto.lower()
     contexto = contexto or {}
 
     # Saudações
-    if texto.lower() in SAUDACOES:
-        return {"resposta": "👋 Olá! Sou Eloy, seu assistente corporativo. Vamos conversar!", "contexto": contexto}
+    if low in SAUDACOES:
+        return {
+            "resposta": "👋 Olá! Eu sou Eloy, seu assistente corporativo. Podemos conversar normalmente.",
+            "action": None,
+            "contexto": contexto
+        }
 
-    # Chat com IA
+    # Chat normal
     if GROQ_API_KEY:
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
         payload = {
             "model": MODEL,
             "messages": [
-                {"role": "system", "content": "Você é Eloy, assistente corporativo amigável e prestativo."},
+                {"role": "system", "content": "Você é Eloy, assistente corporativo."},
                 {"role": "user", "content": texto}
             ],
             "temperature": 0.7
@@ -40,12 +48,12 @@ def processar_com_groq(texto, contexto=None):
             res.raise_for_status()
             data = res.json()
             resposta = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            return {"resposta": resposta, "contexto": contexto}
+            return {"resposta": resposta, "action": None, "contexto": contexto}
         except Exception as e:
-            return {"resposta": f"(Erro ao consultar a IA: {e})", "contexto": contexto}
+            return {"resposta": f"(Erro ao consultar a IA: {e})", "action": None, "contexto": contexto}
     else:
-        # Modo teste
-        return {"resposta": "Eloy (modo teste): " + texto, "contexto": contexto}
+        # Modo teste sem chave
+        return {"resposta": "Eloy (modo teste): " + texto, "action": None, "contexto": contexto}
 
 # ================= HTTP Handler =================
 class EloyHandler(BaseHTTPRequestHandler):
@@ -82,6 +90,10 @@ class EloyHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(result).encode("utf-8"))
             return
 
+        self._set_headers(404)
+        self.wfile.write(json.dumps({"error": "rota não encontrada"}).encode("utf-8"))
+
+    def do_GET(self):
         self._set_headers(404)
         self.wfile.write(json.dumps({"error": "rota não encontrada"}).encode("utf-8"))
 
