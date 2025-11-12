@@ -6,7 +6,7 @@
   "funcionarios": [
     {
       "nome": "Lucas Toledo",
-      "cargo": "Engenheiro de Computação / Coordenador de Projeto"
+      "cargo": "Engenheiro de Software / Coordenador do projeto"
     },
     {
       "nome": "Leonardo Silva",
@@ -18,9 +18,10 @@
     }
   ],
   "projetos": [
-    "Web",
-    "Cálculo",
-    "Edge"
+    "Site Eloy",
+    "Sistema de Gestão Interna",
+    "EloyBand",
+    "EloyBeacon"
   ],
   "relatorios": {}
 }
