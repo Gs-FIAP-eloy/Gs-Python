@@ -60,7 +60,7 @@ def processar_com_groq(texto, contexto=None):
     low = texto.lower()
     contexto = contexto or {}
 
-    # ================= Saudações =================
+    # ================= Saudações e instruções iniciais =================
     if low in SAUDACOES:
         return {
             "resposta":"👋 Olá! Posso conversar com você normalmente ou ajudá-lo com relatórios e equipe.\nDigite 'relatorios' para ver opções de relatórios ou 'equipe' para gerenciar membros.",
@@ -68,7 +68,7 @@ def processar_com_groq(texto, contexto=None):
             "contexto": contexto
         }
 
-    # ================= Menus =================
+    # ================= Mostrar menus =================
     if low == "relatorios":
         return {"resposta":"Você está no módulo de relatórios. 📊 Opções: " + ", ".join(COMANDOS_RELATORIO),
                 "action":"menu_relatorios","contexto": contexto}
@@ -76,13 +76,7 @@ def processar_com_groq(texto, contexto=None):
         return {"resposta":"Você está no módulo de equipe. 👥 Opções: " + ", ".join(COMANDOS_MEMBRO),
                 "action":"menu_equipe","contexto": contexto}
 
-    # ================= Palavras isoladas =================
-    palavras = low.split()
-    if len(palavras) == 1 and palavras[0] in ["adicionar","remover","editar","ver","listar"]:
-        return {"resposta": f"⚠️ Por favor, use o comando composto completo (por exemplo: '{palavras[0]} relatorio' ou '{palavras[0]} membro').",
-                "action": None,"contexto": contexto}
-
-    # ================= Comandos Relatórios =================
+    # ================= Comandos compostos =================
     if low in COMANDOS_RELATORIO:
         contexto["modo"] = "relatorio"
         contexto["acao"] = low
@@ -111,7 +105,6 @@ def processar_com_groq(texto, contexto=None):
             return {"resposta":"Digite a data (DD/MM/AAAA) do relatório que deseja remover:",
                     "action":"remove_relatorio","contexto": contexto}
 
-    # ================= Comandos Membros =================
     if low in COMANDOS_MEMBRO:
         contexto["modo"] = "membro"
         contexto["acao"] = low
@@ -129,17 +122,23 @@ def processar_com_groq(texto, contexto=None):
             resp = f"👥 Funcionários:\n{lista if lista else 'Nenhum funcionário cadastrado.'}"
             return {"resposta": resp,"action":None,"contexto": contexto}
 
-    # ================= Processar ações em andamento =================
+    # ================= Mensagem de instrução para palavra isolada =================
+    palavras = low.split()
+    if len(palavras) == 1 and palavras[0] in ["adicionar","remover","editar","ver","listar"]:
+        return {"resposta": f"⚠️ Por favor, use o comando composto completo (por exemplo: '{palavras[0]} relatorio' ou '{palavras[0]} membro').",
+                "action": None,"contexto": contexto}
+
+    # ================= Processar ações já em andamento =================
     if contexto.get("modo") == "relatorio":
         if contexto.get("acao") == "adicionar relatorio" and "|" in texto:
             date, conteudo = texto.split("|",1)
             adicionar_relatorio(date.strip(), conteudo.strip())
             return {"resposta":f"✅ Relatório de {date.strip()} adicionado com sucesso.","action":None,"contexto": contexto}
-        if contexto.get("acao") == "editar relatorio" and "|" in texto:
+        elif contexto.get("acao") == "editar relatorio" and "|" in texto:
             date, conteudo = texto.split("|",1)
             atualizar_relatorio(date.strip(), conteudo.strip())
             return {"resposta":f"✏️ Relatório de {date.strip()} atualizado.","action":None,"contexto": contexto}
-        if contexto.get("acao") == "remove_relatorio":
+        elif contexto.get("acao") == "remove_relatorio":
             date = texto.strip()
             rels = [r for r in listar_relatorios() if r["date"] == date]
             if rels:
@@ -148,7 +147,7 @@ def processar_com_groq(texto, contexto=None):
             else:
                 datas = [r["date"] for r in listar_relatorios()]
                 return {"resposta": f"⚠️ Relatório não encontrado. Datas disponíveis: {', '.join(datas)}","action":None,"contexto": contexto}
-        if contexto.get("acao") == "ver relatorio":
+        elif contexto.get("acao") == "ver relatorio":
             date = texto.strip()
             rels = [r for r in listar_relatorios() if r["date"] == date]
             if rels:
@@ -162,11 +161,11 @@ def processar_com_groq(texto, contexto=None):
             nome, cargo = texto.split("|",1)
             adicionar_funcionario(nome.strip(), cargo.strip())
             return {"resposta":f"✅ Membro {nome.strip()} adicionado com sucesso.","action":None,"contexto": contexto}
-        if contexto.get("acao") == "edit_membro" and "|" in texto:
+        elif contexto.get("acao") == "edit_membro" and "|" in texto:
             nome, cargo = texto.split("|",1)
             atualizar_funcionario(nome.strip(), cargo.strip())
             return {"resposta":f"✏️ Cargo de {nome.strip()} atualizado para {cargo.strip()}.","action":None,"contexto": contexto}
-        if contexto.get("acao") == "remove_membro":
+        elif contexto.get("acao") == "remove_membro":
             nome = texto.strip()
             funcionarios = [f for f in listar_funcionarios() if f["nome"].lower() != nome.lower()]
             if len(funcionarios) != len(listar_funcionarios()):
