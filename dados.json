@@ -1,0 +1,26 @@
+{
+  "empresa": {
+    "nome": "Eloy Soluções Corporativas",
+    "fundacao": "09/11/2025"
+  },
+  "funcionarios": [
+    {
+      "nome": "Lucas Toledo",
+      "cargo": "Engenheiro de Computação / Coordenador de Projeto"
+    },
+    {
+      "nome": "Leonardo Silva",
+      "cargo": "Desenvolvedor Full Stack"
+    },
+    {
+      "nome": "Samuel Monteiro",
+      "cargo": "Analista de Sistemas"
+    }
+  ],
+  "projetos": [
+    "Web",
+    "Cálculo",
+    "Edge"
+  ],
+  "relatorios": {}
+}

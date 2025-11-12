@@ -1,304 +1,286 @@
-import requests
-import time
-import os
-import re
-import unicodedata
-import threading
-import queue
 import json
+import requests
+import os
 import webbrowser
-from difflib import SequenceMatcher
+import time
 
-# 🔑 Chaves - ESCOLHA UMA API ABAIXO
+# =========================
+# 🔑 CONFIGURAÇÕES INICIAIS
+# =========================
+
 GROQ_API_KEY = "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"
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+MODEL = "llama-3.3-70b-versatile"
+BANCO_ARQUIVO = "dados.json"
 
-# 🔧 Selecione qual API usar
-CURRENT_API = "groq"  # "groq"
+# =========================
+# 🎨 CORES E ESTILOS TERMINAL
+# =========================
 
-# 🎯 Estados
-STATE_STANDBY = "standby"
-STATE_ON = "on"
-STATE_SPEAKING = "speaking"
-STATE_CONVERSING = "conversing"
+class Cores:
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    CYAN = "\033[96m"
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    BLUE = "\033[94m"
+    GRAY = "\033[90m"
+    MAGENTA = "\033[95m"
 
-# Controle global
-current_state = STATE_STANDBY
-should_stop_speaking = False
-should_stop_verification = False
-sentence_queue = queue.Queue()
+def linha():
+    print(Cores.GRAY + "─" * 50 + Cores.RESET)
 
-
-# ========== FUNÇÕES DE IA - MÚLTIPLAS OPÇÕES ==========
-
-def processar_com_groq_streaming(texto_usuario):
-    """
-    Usando streaming real da API Groq
-    """
-    url = "https://api.groq.com/openai/v1/chat/completions"
-
-    modelo = "llama-3.3-70b-versatile"
-
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-    "model": modelo,
-    "messages": [
-        {
-            "role": "system",
-            "content": (
-                "Você é Eloy, um assistente de inteligência artificial focado no ambiente corporativo. "
-                "Seu papel é atuar como um assistente empresarial confiável, respondendo com profissionalismo, "
-                "clareza e objetividade. "
-                "Responda de forma direta e formal, como se estivesse em uma empresa real. "
-                "Quando solicitado, gere relatórios, status, análises ou dados fictícios coerentes e realistas, "
-                "mantendo o tom de um colaborador experiente. "
-                "Evite informalidades e respostas muito curtas. "
-                "Seu objetivo é ajudar em tarefas de trabalho, reuniões, organização e comunicações empresariais."
-            )
-        },
-        {"role": "user", "content": texto_usuario}
-    ],
-    "temperature": 0.7,
-    "max_tokens": 200,
-    "top_p": 0.9,
-    "stream": True
-}
-
-    
-
-    try:
-        print(f"[v0] Enviando requisição Groq com STREAMING...", flush=True)
-
-        res = requests.post(url, headers=headers, json=payload, timeout=30, stream=True)
-
-        if res.status_code != 200:
-            print(f"[v0] Erro HTTP {res.status_code}: {res.text}", flush=True)
-            res.raise_for_status()
-
-        print("🤖 Eloy: ", end="", flush=True)
-
-        buffer_sentenca = ""
-
-        for linha in res.iter_lines():
-            if not linha:
-                continue
-
-            linha_str = linha.decode('utf-8')
-
-            # Skip do prefixo "data: "
-            if linha_str.startswith('data: '):
-                linha_str = linha_str[6:]
-
-            # Skip se for [DONE]
-            if linha_str == '[DONE]':
-                if buffer_sentenca.strip():
-                    sentenca_final = buffer_sentenca.strip()
-                    print(sentenca_final, end=" ", flush=True)
-                    sentence_queue.put(sentenca_final)
-                break
-
-            try:
-                chunk = json.loads(linha_str)
-
-                # Extrair conteúdo do delta
-                if "choices" in chunk and len(chunk["choices"]) > 0:
-                    delta = chunk["choices"][0].get("delta", {})
-                    conteudo = delta.get("content", "")
-
-                    if conteudo:
-                        buffer_sentenca += conteudo
-                        print(conteudo, end="", flush=True)
-
-                        if buffer_sentenca.rstrip().endswith(('.', ',')):
-                            sentenca = buffer_sentenca.strip()
-                            # Enviar a sentença
-                            sentence_queue.put(sentenca)
-                            buffer_sentenca = ""
+def titulo(texto):
+    linha()
+    print(f"{Cores.CYAN}{Cores.BOLD}{texto.center(50)}{Cores.RESET}")
+    linha()
 
 
-            except json.JSONDecodeError:
-                continue
+# =========================
+# ⚙️ FUNÇÕES DE BANCO DE DADOS
+# =========================
 
-        print()  # Quebra de linha
-        sentence_queue.put(None)  # Sinal de fim
-
-    except requests.exceptions.Timeout:
-        print("\n Erro Groq: Timeout - Requisição demorou muito")
-        print("[v0] Tentando fallback...")
-        sentence_queue.put("Desculpe, não consigo processar agora.")
-        sentence_queue.put(None)
-    except requests.exceptions.HTTPError as e:
-        print(f"\n Erro Groq HTTP: {e}")
-        print(f"[v0] Status: {res.status_code}")
-        print(f"[v0] Response: {res.text}")
-        sentence_queue.put("Desculpe, não consigo processar agora.")
-        sentence_queue.put(None)
-    except Exception as e:
-        print(f"\n Erro Groq: {type(e).__name__}: {e}")
-        sentence_queue.put("Desculpe, não consigo processar agora.")
-        sentence_queue.put(None)
-
-
-def processar_com_groq_streaming(texto_usuario):
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    modelo = "llama-3.3-70b-versatile"
-
-    headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    payload = {
-    "model": modelo,
-    "messages": [
-        {
-            "role": "system",
-            "content": (
-                "Você é Eloy, um assistente de inteligência artificial corporativo. "
-                "Seu papel é simular um assistente empresarial real, respondendo como se fizesse parte de uma organização. "
-                "Você deve sempre gerar respostas completas, realistas e contextuais, mesmo que sejam baseadas em dados fictícios. "
-                "Crie relatórios semanais, status de projetos, e análises de desempenho com números e informações plausíveis, "
-                "mantendo coerência e tom profissional. "
-                "Jamais diga que não possui informações; em vez disso, apresente um conteúdo simulado que soe autêntico. "
-                "Evite informalidades e respostas vagas. "
-                "Mantenha sempre a linguagem empresarial, com clareza e objetividade, "
-                "como se estivesse comunicando-se com gestores, analistas ou diretores."
-            )
-        },
-        {"role": "user", "content": texto_usuario}
-    ],
-    "temperature": 0.8,
-    "max_tokens": 250,
-    "top_p": 0.9,
-    "stream": True
-}
-
-
-    try:
-        print(f"[v0] Enviando requisição Groq com STREAMING...", flush=True)
-        res = requests.post(url, headers=headers, json=payload, timeout=30, stream=True)
-
-        if res.status_code != 200:
-            print(f"[v0] Erro HTTP {res.status_code}: {res.text}", flush=True)
-            res.raise_for_status()
-
-        print("🤖 Eloy: ", end="", flush=True)
-
-        buffer_sentenca = ""
-        ultima_sentenca = None  # ← Novo controle
-
-        for linha in res.iter_lines():
-            if not linha:
-                continue
-
-            linha_str = linha.decode('utf-8')
-            if linha_str.startswith('data: '):
-                linha_str = linha_str[6:]
-
-            if linha_str == '[DONE]':
-                # ✅ Só imprime se ainda restar algo novo no buffer
-                if buffer_sentenca.strip() and buffer_sentenca.strip() != ultima_sentenca:
-                    sentenca_final = buffer_sentenca.strip()
-                    print(sentenca_final, end=" ", flush=True)
-                    sentence_queue.put(sentenca_final)
-                break
-
-            try:
-                chunk = json.loads(linha_str)
-                if "choices" in chunk and len(chunk["choices"]) > 0:
-                    delta = chunk["choices"][0].get("delta", {})
-                    conteudo = delta.get("content", "")
-
-                    if conteudo:
-                        buffer_sentenca += conteudo
-                        print(conteudo, end="", flush=True)
-
-                        if buffer_sentenca.rstrip().endswith(('.', '!', '?')):
-                            sentenca = buffer_sentenca.strip()
-                            sentence_queue.put(sentenca)
-                            ultima_sentenca = sentenca  # ← Armazena última enviada
-                            buffer_sentenca = ""
-
-            except json.JSONDecodeError:
-                continue
-
-        print()
-        sentence_queue.put(None)
-
-    except requests.exceptions.Timeout:
-        print("\nErro Groq: Timeout - Requisição demorou muito")
-        sentence_queue.put("Desculpe, não consigo processar agora.")
-        sentence_queue.put(None)
-    except requests.exceptions.HTTPError as e:
-        print(f"\nErro Groq HTTP: {e}")
-        sentence_queue.put("Desculpe, não consigo processar agora.")
-        sentence_queue.put(None)
-    except Exception as e:
-        print(f"\nErro Groq: {type(e).__name__}: {e}")
-        sentence_queue.put("Desculpe, não consigo processar agora.")
-        sentence_queue.put(None)
-
-
-# ========== Função para menu e interações com o usuário ==========
-
-def exibir_menu():
-    """Exibe o menu de opções para o usuário"""
-    print("\nMenu de opções:")
-    print("1. Iniciar modo de conversação")
-    print("2. Acessar site da Eloy")
-    print("3. Desligar Eloy (entra em standby)")
-
-
-def processar_entrada(entrada):
-    """Processa a entrada do usuário e executa as ações correspondentes"""
-    global current_state
-
-    if entrada == "1":
-        if current_state == STATE_CONVERSING:
-            print("Já estamos em modo de conversação! Digite 'desligar' para sair.")
-        else:
-            current_state = STATE_CONVERSING
-            iniciar_conversacao()
-    elif entrada == "2":
-        webbrowser.open("http://www.eloy.com.br")
-    elif entrada == "3":
-        print("Eloy entrou em standby. Pressione 'Enter' para reativar.")
-        current_state = STATE_STANDBY
-        input()  # A Eloy só volta a funcionar após pressionar Enter
-        print("Eloy reativado.")
+def carregar_banco():
+    if not os.path.exists(BANCO_ARQUIVO):
+        banco = {
+            "empresa": {
+                "nome": "Eloy Soluções Corporativas",
+                "fundacao": "09/11/2025"
+            },
+            "funcionarios": [
+                {"nome": "Lucas Toledo", "cargo": "Engenheiro de Computação / Coordenador de Projeto"},
+                {"nome": "Leonardo Silva", "cargo": "Desenvolvedor Full Stack"},
+                {"nome": "Samuel Monteiro", "cargo": "Analista de Sistemas"}
+            ],
+            "projetos": ["Web", "Cálculo", "Edge"],
+            "relatorios": {}
+        }
+        salvar_banco(banco)
     else:
-        print("Opção inválida! Tente novamente.")
+        with open(BANCO_ARQUIVO, "r", encoding="utf-8") as f:
+            banco = json.load(f)
+    return banco
 
 
-def iniciar_conversacao():
-    """Inicia o modo de conversação"""
-    global current_state  # Declare a variável como global aqui
-    print("\nModo de conversação iniciado! Para sair, diga qualquer despedida (ex: 'tchau', 'até logo').")
-
-    despedidas = ["desligar", "flw", "tchau", "até logo", "adeus", "nos vemos", "falou", "até mais", "bye", "bye bye", "até a próxima"]
-
-    while current_state == STATE_CONVERSING:
-        pergunta = input("Você: ")
-        
-        # Verificar se a frase contém alguma despedida
-        if any(despedida in pergunta.lower() for despedida in despedidas):
-            print("\nEloy desligado. Até mais!")
-            current_state = STATE_STANDBY  # Altera o estado global para standby
-            input("Pressione 'Enter' para voltar ao menu de opções.")
-            break
-        
-        processar_com_groq_streaming(pergunta)
+def salvar_banco(banco):
+    with open(BANCO_ARQUIVO, "w", encoding="utf-8") as f:
+        json.dump(banco, f, indent=2, ensure_ascii=False)
 
 
-# ========== MAIN ==========
+# =========================
+# 🤖 CHATBOT GROQ
+# =========================
 
-if __name__ == "__main__":
-    print("\nEloy - Assistente Virtual Interativo (Sem Áudio)")
+def conversar_com_ia():
+    titulo("💬 MODO DE CONVERSAÇÃO - ELOY")
+    print("Digite suas mensagens normalmente.")
+    print("Diga 'tchau', 'sair' ou 'voltar' para encerrar.\n")
 
     while True:
-        exibir_menu()
+        user = input(f"{Cores.BOLD}Você:{Cores.RESET} ").strip()
+        if any(x in user.lower() for x in ["tchau", "sair", "voltar", "adeus", "até logo"]):
+            print(f"{Cores.MAGENTA}🤖 Eloy: Até mais!{Cores.RESET}\n")
+            break
+
+        comandos = {
+            "relatorio": menu_relatorios,
+            "membro": menu_equipe,
+        }
+
+        for cmd, func in comandos.items():
+            if cmd in user.lower():
+                print(f"{Cores.MAGENTA}🤖 Eloy: Redirecionando para o menu de {cmd}...{Cores.RESET}\n")
+                func()
+                return
+
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": MODEL,
+            "messages": [
+                {"role": "system", "content": "Você é Eloy, um assistente corporativo profissional e direto."},
+                {"role": "user", "content": user}
+            ]
+        }
+
+        try:
+            res = requests.post(GROQ_URL, headers=headers, json=payload, timeout=30)
+            data = res.json()
+            resposta = data["choices"][0]["message"]["content"]
+            print(f"{Cores.MAGENTA}🤖 Eloy:{Cores.RESET} {resposta}\n")
+        except Exception as e:
+            print(f"{Cores.RED}⚠️ Erro na IA:{Cores.RESET} {e}\n")
+
+
+# =========================
+# 📊 MENU DE RELATÓRIOS
+# =========================
+
+def menu_relatorios():
+    banco = carregar_banco()
+    while True:
+        titulo("📊 MENU DE RELATÓRIOS")
+        print(f"{Cores.CYAN}1.{Cores.RESET} Adicionar relatório")
+        print(f"{Cores.CYAN}2.{Cores.RESET} Ver relatório por data")
+        print(f"{Cores.CYAN}3.{Cores.RESET} Listar relatórios existentes")
+        print(f"{Cores.CYAN}4.{Cores.RESET} Editar relatório")
+        print(f"{Cores.CYAN}5.{Cores.RESET} Remover relatório")
+        print(f"{Cores.CYAN}6.{Cores.RESET} Voltar ao menu principal")
+        linha()
         opcao = input("Escolha uma opção: ")
-        processar_entrada(opcao)
+
+        if opcao == "1":
+            data = input("🗓️  Data (DD/MM/AAAA): ")
+            texto = input("📝 Conteúdo: ")
+            banco["relatorios"][data] = texto
+            salvar_banco(banco)
+            print(f"{Cores.GREEN}✅ Relatório de {data} adicionado com sucesso.{Cores.RESET}")
+
+        elif opcao == "2":
+            data = input("Digite a data: ")
+            if data in banco["relatorios"]:
+                print(f"\n📅 {Cores.BOLD}Relatório de {data}:{Cores.RESET}\n{banco['relatorios'][data]}")
+            else:
+                print(f"{Cores.RED}⚠️ Relatório não encontrado.{Cores.RESET}")
+                if banco["relatorios"]:
+                    print("Relatórios disponíveis:")
+                    for d in banco["relatorios"].keys():
+                        print(f"- {d}")
+
+        elif opcao == "3":
+            if banco["relatorios"]:
+                print("\n🗂️ Relatórios existentes:")
+                for data in banco["relatorios"].keys():
+                    print(f" - {data}")
+            else:
+                print(f"{Cores.YELLOW}⚠️ Nenhum relatório cadastrado.{Cores.RESET}")
+
+        elif opcao == "4":
+            data = input("Data do relatório a editar: ")
+            if data in banco["relatorios"]:
+                novo = input("Novo conteúdo: ")
+                banco["relatorios"][data] = novo
+                salvar_banco(banco)
+                print(f"{Cores.GREEN}✏️ Relatório atualizado com sucesso.{Cores.RESET}")
+            else:
+                print(f"{Cores.RED}⚠️ Relatório não encontrado.{Cores.RESET}")
+
+        elif opcao == "5":
+            data = input("Data do relatório a remover: ")
+            if data in banco["relatorios"]:
+                del banco["relatorios"][data]
+                salvar_banco(banco)
+                print(f"{Cores.GREEN}🗑️ Relatório removido com sucesso.{Cores.RESET}")
+            else:
+                print(f"{Cores.RED}⚠️ Relatório não encontrado.{Cores.RESET}")
+
+        elif opcao == "6":
+            print(f"{Cores.MAGENTA}🔙 Retornando ao menu principal...{Cores.RESET}\n")
+            break
+        else:
+            print(f"{Cores.RED}⚠️ Opção inválida!{Cores.RESET}")
+
+
+# =========================
+# 👥 MENU DA EQUIPE
+# =========================
+
+def menu_equipe():
+    banco = carregar_banco()
+    while True:
+        titulo("👥 MENU DA EQUIPE")
+        print(f"{Cores.CYAN}1.{Cores.RESET} Ver informações da empresa")
+        print(f"{Cores.CYAN}2.{Cores.RESET} Adicionar membro")
+        print(f"{Cores.CYAN}3.{Cores.RESET} Remover membro")
+        print(f"{Cores.CYAN}4.{Cores.RESET} Editar cargo de membro")
+        print(f"{Cores.CYAN}5.{Cores.RESET} Voltar ao menu principal")
+        linha()
+        opcao = input("Escolha uma opção: ")
+
+        if opcao == "1":
+            print(f"\n🏢 Empresa: {Cores.BOLD}{banco['empresa']['nome']}{Cores.RESET}")
+            print(f"📅 Fundação: {banco['empresa']['fundacao']}\n")
+            print(f"{Cores.BOLD}👤 Funcionários:{Cores.RESET}")
+            for f in banco["funcionarios"]:
+                print(f" - {f['nome']} ({f['cargo']})")
+
+        elif opcao == "2":
+            nome = input("Nome do novo membro: ")
+            cargo = input("Cargo do novo membro: ")
+            banco["funcionarios"].append({"nome": nome, "cargo": cargo})
+            salvar_banco(banco)
+            print(f"{Cores.GREEN}✅ Membro adicionado com sucesso.{Cores.RESET}")
+
+        elif opcao == "3":
+            nome = input("Nome do membro a remover: ")
+            funcionarios = [f for f in banco["funcionarios"] if f["nome"].lower() != nome.lower()]
+            if len(funcionarios) != len(banco["funcionarios"]):
+                banco["funcionarios"] = funcionarios
+                salvar_banco(banco)
+                print(f"{Cores.GREEN}🗑️ Membro removido com sucesso.{Cores.RESET}")
+            else:
+                print(f"{Cores.RED}⚠️ Membro não encontrado.{Cores.RESET}")
+
+        elif opcao == "4":
+            nome = input("Nome do membro a editar: ")
+            for f in banco["funcionarios"]:
+                if f["nome"].lower() == nome.lower():
+                    novo_cargo = input(f"Novo cargo para {f['nome']}: ")
+                    f["cargo"] = novo_cargo
+                    salvar_banco(banco)
+                    print(f"{Cores.GREEN}✏️ Cargo atualizado com sucesso.{Cores.RESET}")
+                    break
+            else:
+                print(f"{Cores.RED}⚠️ Membro não encontrado.{Cores.RESET}")
+
+        elif opcao == "5":
+            print(f"{Cores.MAGENTA}🔙 Retornando ao menu principal...{Cores.RESET}\n")
+            break
+        else:
+            print(f"{Cores.RED}⚠️ Opção inválida!{Cores.RESET}")
+
+
+# =========================
+# 🏠 MENU PRINCIPAL
+# =========================
+
+def menu_principal():
+    while True:
+        titulo("⚙️ ELOY - INTELIGÊNCIA CORPORATIVA INTEGRADA")
+        print(f"{Cores.CYAN}1.{Cores.RESET} Conversar com IA")
+        print(f"{Cores.CYAN}2.{Cores.RESET} Relatórios")
+        print(f"{Cores.CYAN}3.{Cores.RESET} Equipe")
+        print(f"{Cores.CYAN}4.{Cores.RESET} Site da Eloy")
+        print(f"{Cores.CYAN}5.{Cores.RESET} Sair / Desligar Eloy")
+        linha()
+        opcao = input("Escolha uma opção: ")
+
+        if opcao == "1":
+            conversar_com_ia()
+        elif opcao == "2":
+            menu_relatorios()
+        elif opcao == "3":
+            menu_equipe()
+        elif opcao == "4":
+            webbrowser.open("http://www.eloy.com.br")
+        elif opcao == "5":
+            print(f"\n{Cores.YELLOW}💤 Eloy desligado. Pressione Enter para reativar...{Cores.RESET}")
+            input()
+            print(f"{Cores.GREEN}🔋 Reiniciando sistema Eloy...{Cores.RESET}\n")
+            time.sleep(1)
+        else:
+            print(f"{Cores.RED}⚠️ Opção inválida!{Cores.RESET}")
+
+
+# =========================
+# 🚀 EXECUÇÃO
+# =========================
+
+if __name__ == "__main__":
+    titulo("🚀 INICIALIZANDO O SISTEMA ELOY")
+    time.sleep(1)
+    menu_principal()
