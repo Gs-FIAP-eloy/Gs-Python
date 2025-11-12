@@ -36,13 +36,23 @@ def processar_com_groq(texto, contexto=None):
             "Content-Type": "application/json"
         }
         payload = {
-            "model": MODEL,
-            "messages": [
-                {"role": "system", "content": "Você é Eloy, assistente corporativo."},
-                {"role": "user", "content": texto}
-            ],
-            "temperature": 0.7
-        }
+    "model": MODEL,
+    "messages": [
+        {"role": "system", "content": (
+            "Você é Eloy, assistente corporativo e mentor técnico. "
+            "Seja direto e objetivo em suas respostas, evitando textos longos. "
+            "Informações da empresa Eloy: "
+            "Fundadores: Lucas Toledo, Leonardo Silva e Samuel Monteiro. "
+            "Data de criação: 09/11/2025. "
+            "Localização: FIAP na Avenida Paulista, São Paulo. "
+            "Sempre responda como um agente técnico e mentor para o usuário, "
+            "fornecendo respostas claras e concisas."
+        )},
+        {"role": "user", "content": texto}
+    ],
+    "temperature": 0.5   # Mantém respostas mais diretas
+}
+
         try:
             res = requests.post(GROQ_URL, headers=headers, json=payload, timeout=20)
             res.raise_for_status()
