@@ -60,30 +60,37 @@ def processar_com_groq(texto, contexto=None):
     low = texto.lower()
     contexto = contexto or {}
 
-    # ================= Saudações e instruções iniciais =================
-    if low in SAUDACOES:
+    # ================= Saudações =================
+    if low in SAUDACOES and not contexto.get("modo"):
         return {
             "resposta":"👋 Olá! Posso conversar com você normalmente ou ajudá-lo com relatórios e equipe.\nDigite 'relatorios' para ver opções de relatórios ou 'equipe' para gerenciar membros.",
             "action": None,
             "contexto": contexto
         }
 
-    # ================= Mostrar menus =================
-    if low == "relatorios":
+    # ================= Menus =================
+    if low == "relatorios" and not contexto.get("modo"):
         return {"resposta":"Você está no módulo de relatórios. 📊 Opções: " + ", ".join(COMANDOS_RELATORIO),
                 "action":"menu_relatorios","contexto": contexto}
-    if low == "equipe":
+    if low == "equipe" and not contexto.get("modo"):
         return {"resposta":"Você está no módulo de equipe. 👥 Opções: " + ", ".join(COMANDOS_MEMBRO),
                 "action":"menu_equipe","contexto": contexto}
 
+    # ================= Palavras isoladas =================
+    palavras = low.split()
+    if len(palavras) == 1 and palavras[0] in ["adicionar","remover","editar","ver","listar"]:
+        return {"resposta": f"⚠️ Por favor, use o comando composto completo (por exemplo: '{palavras[0]} relatorio' ou '{palavras[0]} membro').",
+                "action": None,"contexto": contexto}
+
     # ================= Comandos compostos =================
-    if low in COMANDOS_RELATORIO:
-        contexto["modo"] = "relatorio"
+    if low in COMANDOS_RELATORIO + COMANDOS_MEMBRO and not contexto.get("modo"):
+        contexto["modo"] = "relatorio" if "relatorio" in low else "membro"
         contexto["acao"] = low
+
         if low == "adicionar relatorio":
             return {"resposta":"Digite a data (DD/MM/AAAA) e o conteúdo separados por '|' (ex: 11/11/2025|Relatório aqui).",
                     "action":"add_relatorio","contexto": contexto}
-        elif low == "ver relatorio":
+        if low == "ver relatorio":
             rels = listar_relatorios()
             if rels:
                 datas = [r["date"] for r in rels]
@@ -91,91 +98,92 @@ def processar_com_groq(texto, contexto=None):
                         "action":"ver_relatorio","contexto": contexto}
             else:
                 return {"resposta":"Nenhum relatório cadastrado.","action":None,"contexto": contexto}
-        elif low == "listar relatorio":
+        if low == "listar relatorio":
             rels = listar_relatorios()
             if rels:
                 datas = [r["date"] for r in rels]
                 return {"resposta":"Lista de relatórios: " + ", ".join(datas),"action":None,"contexto": contexto}
             else:
                 return {"resposta":"Lista de relatórios: Nenhum relatório cadastrado.","action":None,"contexto": contexto}
-        elif low == "editar relatorio":
+        if low == "editar relatorio":
             return {"resposta":"Digite a data (DD/MM/AAAA) e o novo conteúdo separados por '|' (ex: 11/11/2025|Novo conteúdo).",
                     "action":"edit_relatorio","contexto": contexto}
-        elif low == "remover relatorio":
+        if low == "remover relatorio":
             return {"resposta":"Digite a data (DD/MM/AAAA) do relatório que deseja remover:",
                     "action":"remove_relatorio","contexto": contexto}
 
-    if low in COMANDOS_MEMBRO:
-        contexto["modo"] = "membro"
-        contexto["acao"] = low
+        # ================= Membros =================
         if low == "adicionar membro":
             return {"resposta":"Digite o nome e cargo separados por '|' (ex: Lucas Toledo|Desenvolvedor).",
                     "action":"add_membro","contexto": contexto}
-        elif low == "remover membro":
+        if low == "remover membro":
             return {"resposta":"Digite o nome do membro a remover:","action":"remove_membro","contexto": contexto}
-        elif low == "editar membro":
+        if low == "editar membro":
             return {"resposta":"Digite o nome e novo cargo separados por '|' (ex: Lucas Toledo|Coordenador).",
                     "action":"edit_membro","contexto": contexto}
-        elif low == "ver membro":
+        if low == "ver membro":
             funcionarios = listar_funcionarios()
             lista = "\n".join([f"{f['nome']} ({f['cargo']})" for f in funcionarios])
             resp = f"👥 Funcionários:\n{lista if lista else 'Nenhum funcionário cadastrado.'}"
             return {"resposta": resp,"action":None,"contexto": contexto}
 
-    # ================= Mensagem de instrução para palavra isolada =================
-    palavras = low.split()
-    if len(palavras) == 1 and palavras[0] in ["adicionar","remover","editar","ver","listar"]:
-        return {"resposta": f"⚠️ Por favor, use o comando composto completo (por exemplo: '{palavras[0]} relatorio' ou '{palavras[0]} membro').",
-                "action": None,"contexto": contexto}
-
-    # ================= Processar ações já em andamento =================
+    # ================= Processar ações em andamento =================
     if contexto.get("modo") == "relatorio":
-        if contexto.get("acao") == "adicionar relatorio" and "|" in texto:
+        acao = contexto.get("acao")
+        if acao in ["adicionar relatorio","editar relatorio"] and "|" in texto:
             date, conteudo = texto.split("|",1)
-            adicionar_relatorio(date.strip(), conteudo.strip())
-            return {"resposta":f"✅ Relatório de {date.strip()} adicionado com sucesso.","action":None,"contexto": contexto}
-        elif contexto.get("acao") == "editar relatorio" and "|" in texto:
-            date, conteudo = texto.split("|",1)
-            atualizar_relatorio(date.strip(), conteudo.strip())
-            return {"resposta":f"✏️ Relatório de {date.strip()} atualizado.","action":None,"contexto": contexto}
-        elif contexto.get("acao") == "remove_relatorio":
+            if acao == "adicionar relatorio":
+                adicionar_relatorio(date.strip(), conteudo.strip())
+                contexto.clear()
+                return {"resposta":f"✅ Relatório de {date.strip()} adicionado com sucesso.","action":None,"contexto": contexto}
+            else:
+                atualizar_relatorio(date.strip(), conteudo.strip())
+                contexto.clear()
+                return {"resposta":f"✏️ Relatório de {date.strip()} atualizado.","action":None,"contexto": contexto}
+        if acao == "remover relatorio":
             date = texto.strip()
             rels = [r for r in listar_relatorios() if r["date"] == date]
             if rels:
                 remover_relatorio(date)
+                contexto.clear()
                 return {"resposta":f"🗑️ Relatório de {date} removido.","action":None,"contexto": contexto}
             else:
                 datas = [r["date"] for r in listar_relatorios()]
                 return {"resposta": f"⚠️ Relatório não encontrado. Datas disponíveis: {', '.join(datas)}","action":None,"contexto": contexto}
-        elif contexto.get("acao") == "ver relatorio":
+        if acao == "ver relatorio":
             date = texto.strip()
             rels = [r for r in listar_relatorios() if r["date"] == date]
             if rels:
+                contexto.clear()
                 return {"resposta": f"📄 {date}: {rels[0]['texto']}","action":None,"contexto": contexto}
             else:
                 datas = [r["date"] for r in listar_relatorios()]
                 return {"resposta": f"⚠️ Relatório não encontrado. Datas disponíveis: {', '.join(datas)}","action":None,"contexto": contexto}
 
     if contexto.get("modo") == "membro":
-        if contexto.get("acao") == "add_membro" and "|" in texto:
+        acao = contexto.get("acao")
+        if acao in ["add_membro","edit_membro"] and "|" in texto:
             nome, cargo = texto.split("|",1)
-            adicionar_funcionario(nome.strip(), cargo.strip())
-            return {"resposta":f"✅ Membro {nome.strip()} adicionado com sucesso.","action":None,"contexto": contexto}
-        elif contexto.get("acao") == "edit_membro" and "|" in texto:
-            nome, cargo = texto.split("|",1)
-            atualizar_funcionario(nome.strip(), cargo.strip())
-            return {"resposta":f"✏️ Cargo de {nome.strip()} atualizado para {cargo.strip()}.","action":None,"contexto": contexto}
-        elif contexto.get("acao") == "remove_membro":
+            if acao == "add_membro":
+                adicionar_funcionario(nome.strip(), cargo.strip())
+                contexto.clear()
+                return {"resposta":f"✅ Membro {nome.strip()} adicionado com sucesso.","action":None,"contexto": contexto}
+            else:
+                atualizar_funcionario(nome.strip(), cargo.strip())
+                contexto.clear()
+                return {"resposta":f"✏️ Cargo de {nome.strip()} atualizado para {cargo.strip()}","action":None,"contexto": contexto}
+        if acao == "remove_membro":
             nome = texto.strip()
             funcionarios = [f for f in listar_funcionarios() if f["nome"].lower() != nome.lower()]
             if len(funcionarios) != len(listar_funcionarios()):
                 remover_funcionario(nome)
+                contexto.clear()
                 return {"resposta":f"🗑️ Membro {nome} removido.","action":None,"contexto": contexto}
             else:
                 return {"resposta":f"⚠️ Membro não encontrado.","action":None,"contexto": contexto}
 
-    # ================= Chat normal =================
-    if GROQ_API_KEY:
+    # ================= Chat normal só se não houver contexto =================
+    if not contexto.get("modo") and GROQ_API_KEY:
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}","Content-Type":"application/json"}
         payload = {"model": MODEL,"messages":[{"role":"system","content":"Você é Eloy, assistente corporativo."},{"role":"user","content":texto}],"temperature":0.7}
         try:
@@ -214,7 +222,6 @@ class EloyHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
-
         if path == "/api/equipe":
             self._set_headers()
             self.wfile.write(json.dumps({
@@ -222,14 +229,12 @@ class EloyHandler(BaseHTTPRequestHandler):
                 "funcionarios": listar_funcionarios()
             }).encode("utf-8"))
             return
-
         if path == "/api/relatorios":
             self._set_headers()
             rels = listar_relatorios()
             datas = [r["date"] for r in rels]
             self.wfile.write(json.dumps({"relatorios": datas}).encode("utf-8"))
             return
-
         if path.startswith("/api/relatorios/"):
             date = unquote(path[len("/api/relatorios/"):])
             rels = [r for r in listar_relatorios() if r["date"] == date]
@@ -240,14 +245,12 @@ class EloyHandler(BaseHTTPRequestHandler):
                 self._set_headers(404)
                 self.wfile.write(json.dumps({"error": "Relatório não encontrado"}).encode("utf-8"))
             return
-
         self._set_headers(404)
         self.wfile.write(json.dumps({"error":"rota não encontrada"}).encode("utf-8"))
 
     def do_POST(self):
         path = urlparse(self.path).path
         body = self._read_json()
-
         if path == "/api/chat":
             msg = body.get("mensagem", "")
             contexto = body.get("contexto", {})
@@ -255,7 +258,6 @@ class EloyHandler(BaseHTTPRequestHandler):
             self._set_headers()
             self.wfile.write(json.dumps(result).encode("utf-8"))
             return
-
         if path == "/api/equipe":
             nome = body.get("nome")
             cargo = body.get("cargo", "")
@@ -267,7 +269,6 @@ class EloyHandler(BaseHTTPRequestHandler):
             self._set_headers(201)
             self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
             return
-
         if path == "/api/relatorios":
             date = body.get("date")
             texto = body.get("texto","")
@@ -279,7 +280,6 @@ class EloyHandler(BaseHTTPRequestHandler):
             self._set_headers(201)
             self.wfile.write(json.dumps({"ok": True}).encode("utf-8"))
             return
-
         self._set_headers(404)
         self.wfile.write(json.dumps({"error":"rota não encontrada"}).encode("utf-8"))
 
