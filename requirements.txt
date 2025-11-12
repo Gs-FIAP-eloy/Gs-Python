@@ -1,1 +1,18 @@
-requests==2.32.3
+# ====================================
+# 📦 Dependências do Sistema Eloy
+# ====================================
+
+# Requisições HTTP para comunicação com a Groq API
+requests>=2.31.0
+
+# Estilização do terminal com cores (opcional)
+colorama>=0.4.6
+
+# Manipulação e persistência de dados JSON (nativo no Python, mas mantido para compatibilidade)
+jsonlib-python3>=1.6.1
+
+# Navegador padrão do sistema (nativo, mas listado para clareza)
+webbrowser==0.0.1
+
+# Compatibilidade com versões recentes do Python
+typing-extensions>=4.7.1
