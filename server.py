@@ -74,51 +74,42 @@ def processar_mensagem(msg, contexto=None):
 
     # ===== Menu Relatórios =====
     if contexto.get("menu")=="relatorios":
-        # <CHANGE> Reset acao if not in valid input state
-        if low not in COMANDOS_RELATORIO and "acao" not in contexto:
-            return {"resposta":"⚠️ Comando não reconhecido. Use: "+", ".join(COMANDOS_RELATORIO),"action":None,"contexto": contexto}
-        
         if low in COMANDOS_RELATORIO:
             contexto["acao"] = low
             if low=="listar relatorio":
                 rels = listar_relatorios()
                 datas = [r["date"] for r in rels]
-                # <CHANGE> Clear acao after listing so next command is recognized
-                contexto.pop("acao", None)
+                # <CHANGE> Remove a ação após listar para permitir novos comandos
+                del contexto["acao"]
                 return {"resposta":"Lista de relatórios: "+(", ".join(datas) if datas else "Nenhum relatório"),
                         "action":None,"contexto": contexto}
             if low=="ver relatorio": return {"resposta":"Digite a data do relatório (DD/MM/AAAA):","action":"ver_relatorio","contexto": contexto}
             if low in ["adicionar relatorio","editar relatorio"]: return {"resposta":"Digite a data e o conteúdo separados por '|' (ex: 14/11/2025|Conteúdo).","action":low,"contexto": contexto}
             if low=="remover relatorio": return {"resposta":"Digite a data do relatório que deseja remover:","action":low,"contexto": contexto}
-        
         if "acao" in contexto:
             acao = contexto["acao"]
             if acao in ["adicionar relatorio","editar relatorio"] and "|" in texto:
                 date, conteudo = texto.split("|",1)
                 if acao=="adicionar relatorio": adicionar_relatorio(date.strip(),conteudo.strip())
                 else: atualizar_relatorio(date.strip(),conteudo.strip())
-                contexto.clear()
-                contexto["menu"] = "relatorios"
+                # <CHANGE> Remove apenas a ação, mantém o menu
+                del contexto["acao"]
                 return {"resposta":f"✅ Relatório {date.strip()} {'adicionado' if acao=='adicionar relatorio' else 'atualizado'}.","action":None,"contexto": contexto}
             if acao=="ver_relatorio":
                 date = texto.strip()
                 rels = [r for r in listar_relatorios() if r["date"]==date]
-                contexto.clear()
-                contexto["menu"] = "relatorios"
+                # <CHANGE> Remove apenas a ação, mantém o menu
+                del contexto["acao"]
                 return {"resposta": rels[0]["texto"] if rels else "⚠️ Relatório não encontrado.","action":None,"contexto": contexto}
             if acao=="remover relatorio":
                 date = texto.strip()
                 remover_relatorio(date)
-                contexto.clear()
-                contexto["menu"] = "relatorios"
+                # <CHANGE> Remove apenas a ação, mantém o menu
+                del contexto["acao"]
                 return {"resposta":f"🗑️ Relatório {date} removido.","action":None,"contexto": contexto}
 
     # ===== Menu Equipe =====
     if contexto.get("menu")=="equipe":
-        # <CHANGE> Reset acao if not in valid input state
-        if low not in COMANDOS_MEMBRO and "acao" not in contexto:
-            return {"resposta":"⚠️ Comando não reconhecido. Use: "+", ".join(COMANDOS_MEMBRO),"action":None,"contexto": contexto}
-        
         if low in COMANDOS_MEMBRO:
             contexto["acao"] = low
             if low in ["adicionar membro","editar membro"]: return {"resposta":"Digite nome e cargo separados por '|' (ex: Lucas Toledo|Desenvolvedor).","action":low,"contexto": contexto}
@@ -126,27 +117,26 @@ def processar_mensagem(msg, contexto=None):
             if low=="ver membro":
                 membros = listar_funcionarios()
                 lista = "\n".join([f"{m['nome']} ({m['cargo']})" for m in membros])
-                # <CHANGE> Clear acao after listing so next command is recognized
-                contexto.pop("acao", None)
+                # <CHANGE> Remove a ação após listar para permitir novos comandos
+                del contexto["acao"]
                 return {"resposta":lista if lista else "Nenhum membro cadastrado.","action":None,"contexto": contexto}
-        
         if "acao" in contexto:
             acao = contexto["acao"]
             if acao in ["adicionar membro","editar membro"] and "|" in texto:
                 nome,cargo = texto.split("|",1)
                 if acao=="adicionar membro": adicionar_funcionario(nome.strip(),cargo.strip())
                 else: atualizar_funcionario(nome.strip(),cargo.strip())
-                contexto.clear()
-                contexto["menu"] = "equipe"
+                # <CHANGE> Remove apenas a ação, mantém o menu
+                del contexto["acao"]
                 return {"resposta":f"✅ Membro {nome.strip()} {'adicionado' if acao=='adicionar membro' else 'atualizado'}.","action":None,"contexto": contexto}
             if acao=="remover membro":
                 nome = texto.strip()
                 remover_funcionario(nome)
-                contexto.clear()
-                contexto["menu"] = "equipe"
+                # <CHANGE> Remove apenas a ação, mantém o menu
+                del contexto["acao"]
                 return {"resposta":f"🗑️ Membro {nome} removido.","action":None,"contexto": contexto}
 
-    return {"resposta":"⚠️ Comando não reconhecido.","action":None,"contexto": contexto}
+    return {"resposta":"⚠️ Comando não reconhecido. Digite 'chat', 'relatorios' ou 'equipe'.","action":None,"contexto": contexto}
 
 # ================= HTTP Handler =================
 class EloyHandler(BaseHTTPRequestHandler):
