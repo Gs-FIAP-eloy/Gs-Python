@@ -6,15 +6,15 @@
   "funcionarios": [
     {
       "nome": "Lucas Toledo",
-      "cargo": "Engenheiro de Software / Coordenador do projeto"
+      "cargo": "Desenvolvedor Back-end"
     },
     {
       "nome": "Leonardo Silva",
-      "cargo": "Desenvolvedor Full Stack"
+      "cargo": "Desenvolvedor Front-end"
     },
     {
       "nome": "Samuel Monteiro",
-      "cargo": "Analista de Sistemas"
+      "cargo": "Ux/Ui Designer"
     }
   ],
   "projetos": [
