@@ -86,7 +86,7 @@ O agente Eloy é ideal para:
 
 Para empresas que desejam implementar um agente Eloy treinado e personalizado para suas necessidades, o contato deve ser feito através dos canais de comunicação oficiais da empresa.
 
-*   **Site:** [eloy-ai.vercel.app](https://eloy-ai.vercel.app )
+*   **Site:** (https://eloy-ai.vercel.app)
 *   **Parceria:** Entre em contato conosco pelos nossos meios de comunicação para ter uma Eloy treinada para sua empresa.
 
 ---
