@@ -6,9 +6,7 @@ import webbrowser
 
 # 🤖 Eloy – Assistente Técnico Corporativo
 # ==========================================
-# Desenvolvido por Lucas Toledo
-# Última atualização: 12/11/2025
-# Versão: 1.0 (nota 10)
+# Desenvolvido por Lucas Toledo, Leonardo Silva e Samuel Monteiro
 #
 # Este programa implementa um sistema corporativo
 # interativo com menus dinâmicos, persistência em JSON,
@@ -17,7 +15,7 @@ import webbrowser
 # =========================
 # 🔑 CONFIGURAÇÕES INICIAIS
 # =========================
-# Nota: A chave da API Groq foi mantida como a original do usuário, mas
+# Nota: A chave da API Groq mantive a minha, mas
 # em um ambiente real, ela deveria ser carregada de uma variável de ambiente.
 GROQ_API_KEY = "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"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -164,7 +162,7 @@ def salvar_dados(dados):
 # =========================
 def gerar_contexto():
     d = carregar_dados()
-    # O contexto dinâmico do banco de dados foi mantido
+    # contexto dinâmico do banco de dados
     contexto_dinamico = (
         f"A empresa se chama {d['empresa'].get('nome')} fundada em {d['empresa'].get('fundacao')}.\n"
         f"Funcionários: {', '.join(f'{f['nome']} ({f['cargo']})' for f in d['funcionarios'])}.\n"
@@ -172,7 +170,7 @@ def gerar_contexto():
         f"Relatórios registrados: {', '.join(d['relatorios'].keys()) or 'nenhum'}."
     )
     
-    # O prompt de sistema agora inclui o RAG_CONTENT e as diretrizes de personalidade
+    #  prompt de sistema inclui o RAG_CONTENT e as diretrizes de personalidade
     system_prompt = (
         "Você é Eloy, o agente de IA da empresa Eloy. Sua função é facilitar operações simples e "
         "responder a dúvidas básicas sobre a empresa para funcionários e estagiários. "
@@ -206,7 +204,7 @@ def conversar_com_ia():
             "Content-Type": "application/json"
         }
         
-        # O prompt do usuário combina a pergunta com o contexto dinâmico do banco de dados
+        # prompt do usuário combina a pergunta com o contexto dinâmico do banco de dados
         user_content = f"Contexto Dinâmico (Banco de Dados): {contexto_dinamico}\n\nPergunta: {msg}"
         
         payload = {
@@ -215,7 +213,7 @@ def conversar_com_ia():
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
             ],
-            "temperature": 0.5 # Ajustado para 0.5 para respostas mais factuais, como no código anterior
+            "temperature": 0.5 # Ajustado para 0.5 para respostas mais factuais
         }
 
         try:
