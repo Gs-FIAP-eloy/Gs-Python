@@ -3,6 +3,7 @@ import os
 import requests
 import time
 import webbrowser
+import datetime
 
 # 🤖 Eloy – Assistente Técnico Corporativo
 # ==========================================
@@ -15,7 +16,7 @@ import webbrowser
 # =========================
 # 🔑 CONFIGURAÇÕES INICIAIS
 # =========================
-# Nota: A chave da API Groq mantive a minha, mas
+# Nota: A chave da API Groq mantive a minha para facilitar o teste da aplicação, mas
 # em um ambiente real, ela deveria ser carregada de uma variável de ambiente.
 GROQ_API_KEY = "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"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -137,12 +138,48 @@ def carregar_dados():
         }
         salvar_dados(dados_iniciais)
         return dados_iniciais
-    with open(BANCO_ARQUIVO, "r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with open(BANCO_ARQUIVO, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print(f"⚠️ Erro: Arquivo de dados '{BANCO_ARQUIVO}' não encontrado. Criando novo arquivo.")
+        dados_iniciais = {
+            "empresa": {"nome": "Eloy Soluções Corporativas", "fundacao": "09/11/2025"},
+            "funcionarios": [],
+            "projetos": [],
+            "relatorios": {}
+        }
+        salvar_dados(dados_iniciais)
+        return dados_iniciais
+    except json.JSONDecodeError:
+        print(f"⚠️ Erro: Arquivo de dados '{BANCO_ARQUIVO}' corrompido. Reiniciando com dados iniciais.")
+        dados_iniciais = {
+            "empresa": {"nome": "Eloy Soluções Corporativas", "fundacao": "09/11/2025"},
+            "funcionarios": [],
+            "projetos": [],
+            "relatorios": {}
+        }
+        salvar_dados(dados_iniciais)
+        return dados_iniciais
+    except Exception as e:
+        print(f"⚠️ Erro inesperado ao carregar dados: {e}. Reiniciando com dados iniciais.")
+        dados_iniciais = {
+            "empresa": {"nome": "Eloy Soluções Corporativas", "fundacao": "09/11/2025"},
+            "funcionarios": [],
+            "projetos": [],
+            "relatorios": {}
+        }
+        salvar_dados(dados_iniciais)
+        return dados_iniciais
 
 def salvar_dados(dados):
-    with open(BANCO_ARQUIVO, "w", encoding="utf-8") as f:
-        json.dump(dados, f, indent=2, ensure_ascii=False)
+    try:
+        with open(BANCO_ARQUIVO, "w", encoding="utf-8") as f:
+            json.dump(dados, f, indent=2, ensure_ascii=False)
+    except IOError as e:
+        print(f"⚠️ Erro de I/O ao salvar dados: {e}")
+    except Exception as e:
+        print(f"⚠️ Erro inesperado ao salvar dados: {e}")
 
 # =========================
 # 🧠 CHAT ELOY (IA REAL)
@@ -245,8 +282,17 @@ def menu_relatorios():
         acoes[escolha]()
 
 def adicionar_relatorio(dados):
-    data = input("🗓️ Data (DD/MM/AAAA): ")
+    while True:
+        data = input("🗓️ Data (DD/MM/AAAA): ").strip()
+        try:
+            # Tenta converter a string para um objeto datetime no formato DD/MM/AAAA
+            datetime.datetime.strptime(data, "%d/%m/%Y")
+            break # Sai do loop se a data for válida
+        except ValueError:
+            print("⚠️ Formato de data inválido. Use o formato DD/MM/AAAA.")
+            
     conteudo = input("📝 Conteúdo: ")
+    
     dados["relatorios"][data] = conteudo
     salvar_dados(dados)
     print("✅ Relatório salvo!\n")
