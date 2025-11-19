@@ -139,6 +139,6 @@ A ELOY se posiciona como uma parceira estratégica, oferecendo:
 
 O sistema terminal é a prova de conceito do *backend* de gestão e contexto. A aplicação mais ampla do Agente ELOY já está em produção como um chatbot web, servindo como a principal vitrine do produto B2B.
 
-*   **Link para Teste:** O agente ELOY da nossa empresa pode ser acessado através do link configurado no menu principal do sistema terminal: `https://eloy-ai.vercel.app/welcome`.
+*   **Link para Teste:** O agente ELOY da nossa empresa pode ser acessado através do link: `https://eloy-ai.vercel.app/welcome`, nele voce encontrara nosso site..
 
 Este projeto demonstra, portanto, a capacidade de desenvolver tanto a **lógica de *backend* robusta** (sistema terminal) quanto a **aplicação de *frontend* escalável** (versão web), validando a viabilidade técnica e comercial do modelo de negócio.
