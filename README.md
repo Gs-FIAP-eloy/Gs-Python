@@ -1,10 +1,10 @@
-# ELOY: Assistente Técnico Corporativo (Sistema Terminal)
+# ELOY: Assistente Técnico Corporativo 
 
 ## 1. Identificação e Visão Geral
 
 | Atributo | Detalhe |
 | :--- | :--- |
-| **Nome do Projeto** | ELOY: Assistente Técnico Corporativo (Sistema Terminal) |
+| **Nome do Projeto** | ELOY: Assistente Técnico Corporativo|
 | **Integrantes** | Lucas Toledo (RM 563271), Leonardo Silva (RM 564929), Samuel Monteiro (RM 564391) |
 | **Link do Vídeo** | [INSERIR LINK DO VÍDEO AQUI] |
 
@@ -22,7 +22,7 @@ O sistema oferece uma interface de terminal para:
 
 ### 1.3. Diferencial Técnico e de Negócio: RAG com Contexto Dinâmico
 
-O projeto se destaca pela sua arquitetura de **Geração Aumentada por Recuperação (RAG)**, que é implementada em dois níveis:
+O nosso diferencial é a arquitetura de **Geração Aumentada por Recuperação (RAG)**, que é implementada em dois níveis:
 
 *   **RAG Estático:** O agente é treinado com uma base de conhecimento fixa (`RAG_CONTENT`) que define a persona, a história e o modelo de negócio da ELOY.
 *   **RAG Dinâmico:** Antes de cada consulta, o sistema injeta o **estado atual do banco de dados JSON** (funcionários, projetos, relatórios) no *prompt* da IA. Isso permite que o agente ELOY responda a perguntas que exigem dados em tempo real, elevando a precisão e a utilidade do chatbot de um simples Q&A para um **assistente corporativo contextualizado**.
@@ -31,28 +31,25 @@ O **Modelo de Negócio é B2B (Business-to-Business)**: A ELOY vende a tecnologi
 
 ---
 
-## 2. Análise Detalhada do Código-Fonte (`app.py`)
-
-O código foi meticulosamente estruturado em Python para demonstrar domínio sobre modularidade, persistência de dados, tratamento de exceções e validação de entrada, cumprindo integralmente os requisitos de programação.
-
+## 2. Código-Fonte (`app.py`)
 ### 2.1. Modularidade e Funções de Utilidade
 
-O código é dividido em funções claras, cada uma com uma responsabilidade única, demonstrando o uso correto de **funções com passagem de parâmetros e retorno** (Requisito 5):
+O código é dividido em funções claras, cada uma com uma responsabilidade única:
 
 *   `limpar_tela()`: Utiliza o módulo `os` para garantir a compatibilidade de limpeza de tela entre sistemas Windows (`cls`) e Unix-like (`clear`).
 *   `titulo(txt)`: Função simples para formatação visual da interface.
 *   `forca_opcao(msg, lista_opcoes)`: **Função Crítica de Validação** (Requisito 2). Implementa um *loop* de repetição (`while`) que só é encerrado quando o usuário insere um valor numérico que corresponde a uma opção válida na lista, garantindo a integridade da navegação do menu.
 
-### 2.2. Persistência de Dados e Robustez de I/O (Requisitos 3 e 6)
+### 2.2. Persistência de Dados e Robustez de I/O
 
-O sistema utiliza **dicionários como base de dados** (Requisito 6), persistindo-os em um arquivo JSON (`dados.json`). A implementação das funções de I/O foi projetada para ser **extremamente robusta**, demonstrando domínio sobre o **Tratamento de Exceções** (Requisito 3) em operações de arquivo:
+O sistema utiliza **dicionários como base de dados**, persistindo-os em um arquivo JSON (`dados.json`). A implementação das funções de I/O foi projetada para ser **extremamente robusta**, reforçando o **Tratamento de Exceções** em operações de arquivo:
 
 | Função | Exceções Tratadas | Justificativa Técnica |
 | :--- | :--- | :--- |
 | `carregar_dados()` | `FileNotFoundError`, `json.JSONDecodeError`, `Exception` | **Domínio de I/O:** Garante que o sistema não falhe se o arquivo `dados.json` for excluído ou se for corrompido (ex: edição manual incorreta). Em ambos os casos, o sistema se recupera, notifica o usuário e reinicia com a estrutura de dados inicial, mantendo a integridade operacional. |
 | `salvar_dados(dados)` | `IOError`, `Exception` | **Domínio de I/O:** Captura erros de escrita no disco (ex: falta de permissão ou espaço), impedindo que o programa trave e garantindo que o usuário seja notificado sobre a falha de persistência. |
 
-### 2.3. Validação de Dados em Tempo Real (Requisito 2)
+### 2.3. Validação de Dados em Tempo Real
 
 A função `adicionar_relatorio` implementa uma validação de formato de entrada crucial para dados estruturados, utilizando o módulo `datetime`:
 
@@ -69,13 +66,13 @@ def adicionar_relatorio(dados):
     # ... continua a função
 ```
 
-**Domínio de Validação:** Este bloco de código demonstra a capacidade de **forçar o formato de entrada** de dados críticos. O `try...except ValueError` garante que apenas datas no formato `DD/MM/AAAA` sejam aceitas, prevenindo erros de lógica e garantindo a qualidade dos dados armazenados no sistema de gestão.
+**Validação:** Este bloco de código  **força o formato de entrada** de dados críticos. O `try...except ValueError` garante que apenas datas no formato `DD/MM/AAAA` sejam aceitas, prevenindo erros de lógica e garantindo a qualidade dos dados armazenados no sistema de gestão.
 
-### 2.4. Estruturas de Programação (Requisitos 1, 4)
+### 2.4. Estrutura do código
 
-O código utiliza as estruturas de forma eficiente:
-*   **Estrutura de Menu (Requisito 1):** Implementada de forma hierárquica (`menu_principal` -> submenus) com dicionários de ações, o que permite fácil expansão e manutenção.
-*   **Decisão e Repetição (Requisito 4):**
+O código utiliza as estruturas:
+*   **Estrutura de Menu:** Implementada de forma hierárquica (`menu_principal` -> submenus) com dicionários de ações, o que permite fácil expansão e manutenção.
+*   **Decisão e Repetição:**
     *   **Decisão:** Uso extensivo de `if/else` para lógica de CRUD (verificar se o item existe antes de remover/editar) e tratamento de exceções.
     *   **Repetição:** Uso de `while True` para *loops* de menu e chat, e `for` para iteração sobre listas (ex: listagem de funcionários e projetos).
 
@@ -83,7 +80,7 @@ O código utiliza as estruturas de forma eficiente:
 
 ## 3. Dicionário de Funções: Propósito e Funcionamento
 
-Esta seção detalha o propósito e o funcionamento de cada função do `app.py`, demonstrando a modularidade e a clareza da arquitetura do sistema.
+Esta seção detalha o propósito e o funcionamento de cada função do `app.py`, destacando a modularidade e a clareza da arquitetura do sistema.
 
 ### 3.1. Funções de Utilidade e Menu
 
