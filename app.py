@@ -100,19 +100,6 @@ Para empresas que desejam implementar um agente Eloy treinado e personalizado pa
 *Este documento RAG foi elaborado para fornecer uma base de conhecimento completa e estruturada sobre a empresa Eloy, seus fundadores, produto e proposta de valor, otimizando a performance de modelos de linguagem em tarefas de recuperação de informação.*
 """
 
-# =========================
-# 🎨 CORES E ESTILOS
-# =========================
-class Cores:
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    CYAN = "\033[96m"
-    GREEN = "\033[92m"
-    YELLOW = "\033[93m"
-    RED = "\033[91m"
-    MAGENTA = "\033[95m"
-    BLUE = "\033[94m"
-
 def limpar_tela():
     os.system("cls" if os.name == "nt" else "clear")
 
