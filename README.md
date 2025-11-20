@@ -6,7 +6,7 @@
 | :--- | :--- |
 | **Nome do Projeto** | ELOY: Assistente Técnico Corporativo|
 | **Integrantes** | Lucas Toledo (RM 563271), Leonardo Silva (RM 564929), Samuel Monteiro (RM 564391) |
-| **Link do Vídeo** | [INSERIR LINK DO VÍDEO AQUI] |
+| **Link do Vídeo** |https://youtu.be/nOA84WwOVWk |
 
 ### 1.1. Problema Abordado: A Ineficiência na Disseminação de Conhecimento
 
