@@ -18,7 +18,7 @@ import datetime
 # =========================
 # Nota: A chave da API Groq mantive a minha para facilitar o teste da aplicação, mas
 # em um ambiente real, ela deveria ser carregada de uma variável de ambiente.
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 MODEL = "llama-3.3-70b-versatile"
 BANCO_ARQUIVO = "dados.json"
